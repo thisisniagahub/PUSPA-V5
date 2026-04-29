@@ -8,14 +8,30 @@ import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import type { OpenClawSnapshot } from '@/lib/openclaw'
 
+interface GatewayStatusInfo {
+  status: string
+  version?: string
+  uptime?: number
+  sessions?: number
+}
+
 export default function ModelsPage() {
   const [snapshot, setSnapshot] = useState<OpenClawSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatusInfo | null>(null)
 
   const load = async () => {
     try {
       setLoading(true)
-      setSnapshot(await api.get<OpenClawSnapshot>('/openclaw/snapshot'))
+      try {
+        setSnapshot(await api.get<OpenClawSnapshot>('/openclaw/snapshot'))
+      } catch { /* bridge offline */ }
+      try {
+        const status = await api.get<GatewayStatusInfo>('/openclaw/status')
+        if (status.connected || status.status === 'ok') {
+          setGatewayStatus(status)
+        }
+      } catch { /* gateway offline */ }
     } finally {
       setLoading(false)
     }
@@ -30,13 +46,29 @@ export default function ModelsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Brain className="h-6 w-6" />Enjin Model</h1>
-          <p className="text-muted-foreground mt-1">Live model config dan auth footprint dari AI Ops VPS</p>
+          <p className="text-muted-foreground mt-1">
+            {gatewayStatus ? `Gateway v${gatewayStatus.version || '?'} — ${gatewayStatus.sessions || 0} sesi aktif` : 'Live model config dan auth footprint dari AI Ops VPS'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></Button>
           {snapshot?.controlUrl ? <Button size="sm" asChild><a href={snapshot.controlUrl} target="_blank" rel="noreferrer">Buka Live<ExternalLink className="ml-1 h-4 w-4" /></a></Button> : null}
         </div>
       </div>
+
+      {/* Gateway status */}
+      {gatewayStatus && (
+        <Card className="border-emerald-500/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Badge className="bg-emerald-600">GATEWAY ONLINE</Badge>
+              <span className="text-sm text-muted-foreground">v{gatewayStatus.version || 'unknown'}</span>
+              <span className="text-sm text-muted-foreground">Uptime: {gatewayStatus.uptime ? `${Math.floor(gatewayStatus.uptime / 60)}min` : 'N/A'}</span>
+              <span className="text-sm text-muted-foreground">Sesi: {gatewayStatus.sessions ?? 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Default</p><p className="text-sm font-semibold break-all">{snapshot?.models.resolvedDefault || '-'}</p></CardContent></Card>
@@ -51,6 +83,7 @@ export default function ModelsPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {(snapshot?.models.fallbacks ?? []).map((model) => <Badge key={model} variant="outline">{model}</Badge>)}
+          {(!snapshot?.models.fallbacks?.length) && <p className="text-sm text-muted-foreground">Tiada fallback chain tersedia</p>}
         </CardContent>
       </Card>
 

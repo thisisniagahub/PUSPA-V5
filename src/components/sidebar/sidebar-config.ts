@@ -29,6 +29,7 @@ import {
   Warehouse,
   GraduationCap,
   Settings,
+  MessageSquare,
 } from 'lucide-react'
 import type { UserRole } from '@/stores/app-store'
 import type { SidebarNavGroup } from './sidebar-types'
@@ -113,6 +114,7 @@ export const SIDEBAR_GROUPS: SidebarNavGroup[] = [
       { id: 'openclaw-agents', label: 'Ejen AI', icon: Bot, roles: ['developer'] },
       { id: 'openclaw-models', label: 'Enjin Model', icon: Cpu, roles: ['developer'] },
       { id: 'openclaw-automation', label: 'Automasi', icon: Clock, roles: ['developer'] },
+      { id: 'openclaw-chat', label: 'Chat AI', icon: MessageSquare, roles: ['developer'] },
     ],
   },
   {

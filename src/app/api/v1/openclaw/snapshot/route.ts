@@ -1,12 +1,25 @@
 import { NextResponse } from 'next/server'
 import { AuthorizationError, requireRole } from '@/lib/auth'
-import { DEFAULT_OPENCLAW_BRIDGE_URL, getOpenClawBridgeHeaders, type OpenClawSnapshot } from '@/lib/openclaw'
+import {
+  DEFAULT_OPENCLAW_BRIDGE_URL,
+  getOpenClawBridgeHeaders,
+  getGatewayUrl,
+  getGatewayToken,
+  type OpenClawSnapshot,
+} from '@/lib/openclaw'
 
 export async function GET(request: Request) {
+  try {
+    await requireRole(request, ['developer'])
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status })
+    }
+  }
+
   const baseUrl = (process.env.OPENCLAW_BRIDGE_URL || DEFAULT_OPENCLAW_BRIDGE_URL).replace(/\/$/, '')
 
   try {
-    await requireRole(request, ['developer'])
     const response = await fetch(`${baseUrl}/snapshot`, {
       method: 'GET',
       cache: 'no-store',
@@ -28,10 +41,7 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     if (error instanceof AuthorizationError) {
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-      }, { status: error.status })
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status })
     }
     return NextResponse.json({
       success: false,

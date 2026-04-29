@@ -26,6 +26,7 @@ const moduleLoaders: Record<ViewId, React.ComponentType> = {
   'openclaw-agents': dynamic(() => import('@/modules/openclaw/agents'), { ssr: false }),
   'openclaw-models': dynamic(() => import('@/modules/openclaw/models'), { ssr: false }),
   'openclaw-automation': dynamic(() => import('@/modules/openclaw/automation'), { ssr: false }),
+  'openclaw-chat': dynamic(() => import('@/modules/openclaw/chat/page'), { ssr: false }),
   'openclaw-graph': dynamic(() => import('@/modules/openclaw/graph/page'), { ssr: false }),
   'ekyc': dynamic(() => import('@/modules/ekyc/page'), { ssr: false }),
   'tapsecure': dynamic(() => import('@/modules/tapsecure/page'), { ssr: false }),

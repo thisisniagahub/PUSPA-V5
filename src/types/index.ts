@@ -23,6 +23,7 @@ export type ViewId =
   | 'openclaw-models'
   | 'openclaw-automation'
   | 'openclaw-graph'
+  | 'openclaw-chat'
   | 'ekyc'
   | 'tapsecure'
   | 'agihan-bulan'
@@ -57,6 +58,7 @@ export const viewLabels: Record<ViewId, string> = {
   'openclaw-models': 'Enjin Model',
   'openclaw-automation': 'Automasi',
   'openclaw-graph': 'Graf Visual',
+  'openclaw-chat': 'Chat AI',
   'ekyc': 'eKYC',
   'tapsecure': 'TapSecure',
   'agihan-bulan': 'Agihan Bulan',
