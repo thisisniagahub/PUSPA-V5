@@ -1,0 +1,130 @@
+import { db } from '@/lib/db'
+import { randomBytes, createHash } from 'crypto'
+
+export type BotRole = 'bot' | 'admin_bot' | 'ops_bot'
+
+export interface BotPermissions {
+  dashboard?: boolean
+  members?: boolean
+  cases?: boolean
+  donations?: boolean
+  disbursements?: boolean
+  ekyc?: boolean
+  reports?: boolean
+  ops?: boolean
+  admin?: boolean
+}
+
+export interface CreateBotKeyParams {
+  name: string
+  role?: BotRole
+  permissions?: BotPermissions
+  expiresInDays?: number // null = never expires
+}
+
+export async function createBotApiKey({
+  name,
+  role = 'bot',
+  permissions = {},
+  expiresInDays,
+}: CreateBotKeyParams) {
+  // Generate random key: psbot_<random>
+  const randomPart = randomBytes(24).toString('base64url')
+  const rawKey = `psbot_${randomPart}`
+  const keyPrefix = rawKey.slice(0, 12) // psbot_XXXXX... for display
+
+  // Hash the key for storage (never store plain text)
+  const keyHash = createHash('sha256').update(rawKey).digest('hex')
+
+  const expiresAt = expiresInDays
+    ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+    : null
+
+  const botKey = await db.botApiKey.create({
+    data: {
+      name,
+      key: keyHash,
+      keyPrefix,
+      role,
+      permissions: JSON.stringify(permissions),
+      expiresAt,
+      isActive: true,
+    },
+  })
+
+  // Return the raw key ONLY once - this is the only time it can be retrieved
+  return {
+    id: botKey.id,
+    name: botKey.name,
+    role: botKey.role,
+    permissions,
+    keyPrefix: botKey.keyPrefix,
+    rawKey, // ONLY returned here - save this!
+    expiresAt: botKey.expiresAt,
+    createdAt: botKey.createdAt,
+  }
+}
+
+export async function verifyBotApiKey(rawKey: string) {
+  if (!rawKey.startsWith('psbot_')) {
+    return null
+  }
+
+  const keyHash = createHash('sha256').update(rawKey).digest('hex')
+
+  const botKey = await db.botApiKey.findUnique({
+    where: { key: keyHash },
+  })
+
+  if (!botKey) {
+    return null
+  }
+
+  if (!botKey.isActive) {
+    return { valid: false, reason: 'inactive', bot: null }
+  }
+
+  if (botKey.expiresAt && new Date() > botKey.expiresAt) {
+    return { valid: false, reason: 'expired', bot: null }
+  }
+
+  // Update lastUsedAt
+  await db.botApiKey.update({
+    where: { id: botKey.id },
+    data: { lastUsedAt: new Date() },
+  })
+
+  return {
+    valid: true,
+    bot: {
+      id: botKey.id,
+      name: botKey.name,
+      role: botKey.role,
+      permissions: JSON.parse(botKey.permissions) as BotPermissions,
+    },
+  }
+}
+
+export async function revokeBotApiKey(id: string) {
+  return db.botApiKey.update({
+    where: { id },
+    data: { isActive: false },
+  })
+}
+
+export async function listBotApiKeys() {
+  return db.botApiKey.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      keyPrefix: true,
+      role: true,
+      permissions: true,
+      lastUsedAt: true,
+      expiresAt: true,
+      isActive: true,
+      createdAt: true,
+    },
+  })
+}

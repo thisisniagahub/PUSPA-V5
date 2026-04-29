@@ -1,0 +1,951 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./../db/custom.db"
+}
+
+// ============================================================
+// Enums (converted to String for SQLite compatibility)
+// ============================================================
+
+// UserRole: staff, admin, developer
+// MemberStatus: active, inactive, blacklisted
+// MaritalStatus: single, married, divorced, widowed
+// ProgrammeCategory: food_aid, education, skills_training, healthcare, financial_assistance, community, emergency_relief, dawah
+// ProgrammeStatus: planned, active, completed, suspended
+// CaseStatus: draft, submitted, verifying, verified, scoring, scored, approved, disbursing, disbursed, follow_up, closed, rejected
+// CasePriority: urgent, high, normal, low
+// CaseCategory: zakat, sedekah, wakaf, infak, government_aid
+// DonationStatus: pending, confirmed, failed, refunded
+// DonationMethod: cash, bank_transfer, online, cheque, ewallet
+// FundType: zakat, sadaqah, waqf, infaq, donation_general
+// ZakatCategory: fitrah, harta, pendapatan, perniagaan
+// DisbursementStatus: pending, approved, processing, disbursed, cancelled, failed
+// ActivityType: event, meeting, training, outreach, fundraiser, volunteer, audit, visit, other
+// ActivityStatus: planned, in_progress, completed, cancelled
+// PartnerType: government, corporate, ngo, foundation, masjid, individual
+// VerificationStatus: claimed, partner_confirmed, publicly_verified
+// DonorSegment: major, regular, occasional, lapsed
+// DonorStatus: active, inactive
+// CommunicationType: email, phone, whatsapp
+// CommunicationStatus: sent, draft, failed
+// VolunteerStatus: active, inactive, blacklisted
+// VolunteerAvailability: weekday, weekend, anytime
+// DeploymentStatus: assigned, active, completed, cancelled
+// HourLogStatus: pending, approved, rejected
+// EKYCStatus: pending, verified, rejected
+// RiskLevel: low, medium, high
+// NotificationType: info, warning, error, success
+// SecurityLogStatus: success, failed
+// BoardMemberRole: chairman, vice_chairman, secretary, deputy_secretary, treasurer, committee_member, adviser, trustee, other
+// DocumentCategory: pendaftaran, tadbir_urus, kewangan, pematuhan, operasi, program
+// DocumentStatus: active, archived, deleted
+// RegistrationType: pertubuhan, syarikat, yayasan
+// HermesMessageRole: user, assistant, system
+// HermesSkillSource: auto, manual, imported
+// HermesMemoryCategory: preference, fact, procedure, context, general
+// HermesMemorySource: conversation, manual, skill
+// HermesProvider: zai, openrouter, ollama
+
+// ============================================================
+// Models
+// ============================================================
+
+model User {
+  id                     String               @id @default(uuid())
+  supabaseId             String?              @unique
+  email                  String               @unique
+  password               String
+  name                   String
+  role                   String               @default("staff") // Enum: UserRole (staff, admin, developer)
+  avatar                 String?
+  phone                  String?
+  isActive               Boolean              @default(true)
+  lastLogin              DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  deletedAt              DateTime?
+  auditLogs              AuditLog[]
+  assignedCases          Case[]               @relation("CaseAssignee")
+  createdCases           Case[]               @relation("CaseCreator")
+  deviceBindings         DeviceBinding[]
+  notifications          Notification[]
+  securityLogs           SecurityLog[]
+  securitySettings       SecuritySettings?
+  caseNotes              CaseNote[]
+  caseDocuments          CaseDocument[]
+  disbursementsApproved  Disbursement[]
+  eKYCVerifications      EKYCVerification[]
+  donorCommunications    DonorCommunication[]
+  captures               Capture[]
+  hermesConversations    HermesConversation[]
+  hermesSkills           HermesSkill[]
+  hermesProviderConfig   HermesProviderConfig?
+}
+
+model Member {
+  id               String            @id @default(uuid())
+  memberNumber     String            @unique
+  name             String
+  ic               String            @unique
+  phone            String
+  email            String?
+  address          String
+  city             String?
+  state            String?
+  postalCode       String?
+  householdSize    Int               @default(1)
+  monthlyIncome    Decimal           @default(0)
+  maritalStatus    String            @default("single") // Enum: MaritalStatus (single, married, divorced, widowed)
+  occupation       String?
+  bankAccount      String?
+  bankName         String?
+  status           String            @default("active") // Enum: MemberStatus (active, inactive, blacklisted)
+  notes            String?
+  joinedAt         DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+  cases            Case[]
+  disbursements    Disbursement[]
+  eKYCVerification EKYCVerification?
+  householdMembers HouseholdMember[]
+
+  @@index([memberNumber])
+  @@index([ic])
+  @@index([status])
+}
+
+model HouseholdMember {
+  id           String   @id @default(uuid())
+  name         String
+  relationship String
+  age          Int?
+  occupation   String?
+  income       Decimal  @default(0)
+  isOKU        Boolean  @default(false)
+  isStudent    Boolean  @default(false)
+  memberId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model Programme {
+  id                   String                @id @default(uuid())
+  name                 String
+  description          String?
+  category             String                // Enum: ProgrammeCategory (food_aid, education, skills_training, healthcare, financial_assistance, community, emergency_relief, dawah)
+  status               String                @default("active") // Enum: ProgrammeStatus (planned, active, completed, suspended)
+  startDate            DateTime?
+  endDate              DateTime?
+  location             String?
+  targetBeneficiaries  Int?
+  actualBeneficiaries  Int                   @default(0)
+  budget               Decimal               @default(0)
+  totalSpent           Decimal               @default(0)
+  partners             String?
+  notes                String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  deletedAt            DateTime?
+  activities           Activity[]
+  cases                Case[]
+  disbursements        Disbursement[]
+  donations            Donation[]
+  impactMetrics        ImpactMetric[]
+  volunteerDeployments VolunteerDeployment[]
+}
+
+model Case {
+  id                String         @id @default(uuid())
+  caseNumber        String         @unique
+  title             String
+  description       String?
+  status            String         @default("draft") // Enum: CaseStatus (draft, submitted, verifying, verified, scoring, scored, approved, disbursing, disbursed, follow_up, closed, rejected)
+  priority          String         @default("normal") // Enum: CasePriority (urgent, high, normal, low)
+  category          String         @default("zakat") // Enum: CaseCategory (zakat, sedekah, wakaf, infak, government_aid)
+  amount            Decimal        @default(0)
+  applicantName     String?
+  applicantIC       String?
+  applicantPhone    String?
+  applicantAddress  String?
+  memberId          String?
+  programmeId       String?
+  creatorId         String
+  assigneeId        String?
+  verificationScore Float?         @default(0)
+  welfareScore      Float?         @default(0)
+  notes             String?
+  closedAt          DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+  assignee          User?          @relation("CaseAssignee", fields: [assigneeId], references: [id])
+  creator           User           @relation("CaseCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  programme         Programme?     @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  member            Member?        @relation(fields: [memberId], references: [id])
+  caseDocuments     CaseDocument[]
+  caseNotes         CaseNote[]
+  disbursements     Disbursement[]
+  donations         Donation[]
+
+  @@index([caseNumber])
+  @@index([status])
+  @@index([memberId])
+  @@index([programmeId])
+  @@index([creatorId])
+  @@index([assigneeId])
+  @@index([createdAt])
+}
+
+model CaseNote {
+  id        String   @id @default(uuid())
+  content   String
+  type      String   @default("note")
+  caseId    String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model CaseDocument {
+  id           String   @id @default(uuid())
+  name         String
+  type         String   @default("document")
+  url          String
+  caseId       String
+  uploadedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  case         Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+}
+
+model Donation {
+  id               String          @id @default(uuid())
+  donationNumber   String          @unique
+  donorName        String
+  donorIC          String?
+  donorEmail       String?
+  donorPhone       String?
+  amount           Decimal
+  status           String          @default("pending") // Enum: DonationStatus (pending, confirmed, failed, refunded)
+  method           String          @default("cash") // Enum: DonationMethod (cash, bank_transfer, online, cheque, ewallet)
+  channel          String?
+  fundType         String          @default("donation_general") // Enum: FundType (zakat, sadaqah, waqf, infaq, donation_general)
+  zakatCategory    String?         // Enum: ZakatCategory (fitrah, harta, pendapatan, perniagaan)
+  zakatAuthority   String?
+  shariahCompliant Boolean         @default(true)
+  isAnonymous      Boolean         @default(false)
+  isTaxDeductible  Boolean         @default(false)
+  receiptNumber    String?
+  programmeId      String?
+  caseId           String?
+  donorId          String?
+  notes            String?
+  donatedAt        DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
+  programme        Programme?      @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  case             Case?           @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  donor            Donor?          @relation(fields: [donorId], references: [id], onDelete: SetNull)
+  taxReceipts      TaxReceipt[]
+
+  @@index([fundType])
+  @@index([status])
+  @@index([donatedAt])
+  @@index([method])
+  @@index([donorIC])
+  @@index([donorEmail])
+  @@index([donorPhone])
+  @@index([programmeId])
+  @@index([caseId])
+  @@index([donorId])
+}
+
+model Disbursement {
+  id                 String             @id @default(uuid())
+  disbursementNumber String             @unique
+  amount             Decimal
+  purpose            String
+  status             String             @default("pending") // Enum: DisbursementStatus (pending, approved, processing, disbursed, cancelled, failed)
+  recipientName      String
+  recipientIC        String?
+  recipientBank      String?
+  recipientAcc       String?
+  scheduledDate      DateTime?
+  processedDate      DateTime?
+  receiptUrl         String?
+  notes              String?
+  approvedById       String?
+  caseId             String?
+  programmeId        String?
+  memberId           String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+  member             Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  programme          Programme?         @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  case               Case?              @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  approvedBy         User?              @relation(fields: [approvedById], references: [id])
+
+  @@index([status])
+  @@index([programmeId])
+  @@index([caseId])
+  @@index([memberId])
+  @@index([processedDate])
+}
+
+model Activity {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  type        String        @default("other") // Enum: ActivityType (event, meeting, training, outreach, fundraiser, volunteer, audit, visit, other)
+  status      String        @default("planned") // Enum: ActivityStatus (planned, in_progress, completed, cancelled)
+  date        DateTime?
+  endDate     DateTime?
+  location    String?
+  programmeId String?
+  assignees   String?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  order       Int           @default(0)
+  programme   Programme?    @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  volunteerDeployments VolunteerDeployment[]
+
+  @@index([programmeId])
+}
+
+model OrganizationProfile {
+  id                 String           @id @default(uuid())
+  legalName          String
+  tradeName          String?
+  registrationType   String           @default("pertubuhan") // Enum: RegistrationType (pertubuhan, syarikat, yayasan)
+  registrationNumber String?
+  foundedDate        DateTime?
+  registeredAddress  String?
+  operatingAddress   String?
+  phone              String?
+  email              String?
+  website            String?
+  bankName           String?
+  bankAccount        String?
+  bankVerified       Boolean          @default(false)
+  lhdnApprovalRef    String?
+  lhdnApprovalExpiry DateTime?
+  isTaxExempt        Boolean          @default(false)
+  rosCertificateUrl  String?
+  constitutionUrl    String?
+  logoUrl            String?
+  missionStatement   String?
+  visionStatement    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model BoardMember {
+  id              String          @id @default(uuid())
+  name            String
+  title           String?
+  role            String          // Enum: BoardMemberRole (chairman, vice_chairman, secretary, deputy_secretary, treasurer, committee_member, adviser, trustee, other)
+  appointmentDate DateTime?
+  endDate         DateTime?
+  phone           String?
+  email           String?
+  photo           String?
+  bio             String?
+  isCurrent       Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Partner {
+  id              String            @id @default(uuid())
+  name            String
+  type            String            @default("ngo") // Enum: PartnerType (government, corporate, ngo, foundation, masjid, individual)
+  relationship    String?
+  contactPerson   String?
+  contactPhone    String?
+  contactEmail    String?
+  address         String?
+  verifiedStatus  String            @default("claimed") // Enum: VerificationStatus (claimed, partner_confirmed, publicly_verified)
+  verificationUrl String?
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+}
+
+model ImpactMetric {
+  id                 String    @id @default(uuid())
+  programmeId        String
+  metricName         String
+  description        String?
+  selfReportedValue  Float?
+  verifiedValue      Float?
+  verificationSource String?
+  verificationDate   DateTime?
+  verificationUrl    String?
+  methodology        String?
+  period             String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  programme          Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+}
+
+model PublicReport {
+  id          String    @id @default(uuid())
+  title       String
+  type        String
+  year        String
+  period      String?
+  url         String?
+  status      String    @default("draft")
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ComplianceChecklist {
+  id          String    @id @default(uuid())
+  category    String
+  item        String
+  description String?
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  evidenceUrl String?
+  notes       String?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  userId    String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  title     String
+  message   String
+  type      String    @default("info") // Enum: NotificationType (info, warning, error, success)
+  isRead    Boolean   @default(false)
+  userId    String?
+  link      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Capture {
+  id        String   @id @default(uuid())
+  type      String
+  content   String
+  metadata  String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+model EKYCVerification {
+  id                  String     @id @default(uuid())
+  memberId            String     @unique
+  icFrontUrl          String?
+  icBackUrl           String?
+  icName              String?
+  icNumber            String?
+  icAddress           String?
+  icDateOfBirth       DateTime?
+  icGender            String?
+  selfieUrl           String?
+  livenessScore       Float?
+  livenessMethod      String?
+  faceMatchScore      Float?
+  status              String     @default("pending") // Enum: EKYCStatus (pending, verified, rejected)
+  verifiedById        String?
+  verifiedAt          DateTime?
+  rejectionReason     String?
+  bnmCompliant        Boolean    @default(false)
+  amlaScreening       String?
+  riskLevel           String?    // Enum: RiskLevel (low, medium, high)
+  screeningNotes      String?
+  walletEnabled       Boolean    @default(false)
+  walletLimit         Float      @default(200)
+  previousLimit       Float      @default(200)
+  limitUpgradedAt     DateTime?
+  bankTransferEnabled Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  member              Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  verifiedBy          User?      @relation(fields: [verifiedById], references: [id])
+}
+
+model SecuritySettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  biometricTransactions Boolean  @default(false)
+  boundDeviceOnly       Boolean  @default(false)
+  sessionTimeout        Int      @default(30)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DeviceBinding {
+  id                String    @id @default(uuid())
+  userId            String
+  deviceName        String?
+  deviceType        String?
+  deviceFingerprint String?
+  userAgent         String?
+  ipAddress         String?
+  location          String?
+  isPrimary         Boolean   @default(false)
+  isTrusted         Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  otpVerified       Boolean   @default(false)
+  lastUsedAt        DateTime?
+  boundAt           DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SecurityLog {
+  id                String    @id @default(uuid())
+  userId            String?
+  action            String
+  method            String?
+  deviceFingerprint String?
+  ipAddress         String?
+  userAgent         String?
+  status            String    @default("success") // Enum: SecurityLogStatus (success, failed)
+  details           String?
+  createdAt         DateTime  @default(now())
+  user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Volunteer {
+  id               String                 @id @default(uuid())
+  volunteerNumber  String                 @unique
+  name             String
+  ic               String                 @unique
+  phone            String
+  email            String?
+  address          String?
+  city             String?
+  state            String?
+  occupation       String?
+  skills           String?
+  availability     String?                // Enum: VolunteerAvailability (weekday, weekend, anytime)
+  emergencyContact String?
+  emergencyPhone   String?
+  status           String                 @default("active") // Enum: VolunteerStatus (active, inactive, blacklisted)
+  joinedAt         DateTime               @default(now())
+  totalHours       Float                  @default(0)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
+  certificates     VolunteerCertificate[]
+  deployments      VolunteerDeployment[]
+  hourLogs         VolunteerHourLog[]
+
+  @@index([status])
+  @@index([volunteerNumber])
+}
+
+model VolunteerDeployment {
+  id          String          @id @default(uuid())
+  volunteerId String
+  programmeId String?
+  activityId  String?
+  role        String          @default("participant")
+  status      String          @default("assigned") // Enum: DeploymentStatus (assigned, active, completed, cancelled)
+  startDate   DateTime
+  endDate     DateTime?
+  location    String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  programme   Programme?      @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  volunteer   Volunteer       @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  activity    Activity?       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  hourLogs    VolunteerHourLog[]
+
+  @@index([volunteerId])
+  @@index([status])
+}
+
+model VolunteerHourLog {
+  id           String             @id @default(uuid())
+  volunteerId  String
+  deploymentId String?
+  date         DateTime
+  hours        Float
+  activity     String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  status       String             @default("pending") // Enum: HourLogStatus (pending, approved, rejected)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  volunteer    Volunteer          @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  deployment   VolunteerDeployment? @relation(fields: [deploymentId], references: [id])
+
+  @@index([volunteerId])
+  @@index([status])
+}
+
+model VolunteerCertificate {
+  id                String    @id @default(uuid())
+  volunteerId       String
+  certificateNumber String    @unique
+  title             String
+  description       String?
+  issuedAt          DateTime  @default(now())
+  totalHours        Float     @default(0)
+  issuedBy          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  volunteer         Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+}
+
+model Donor {
+  id               String               @id @default(uuid())
+  donorNumber      String               @unique
+  name             String
+  ic               String?
+  phone            String?
+  email            String?
+  address          String?
+  city             String?
+  state            String?
+  segment          String               @default("occasional") // Enum: DonorSegment (major, regular, occasional, lapsed)
+  preferredContact String?
+  isAnonymous      Boolean              @default(false)
+  notes            String?
+  totalDonated     Decimal              @default(0)
+  donationCount    Int                  @default(0)
+  firstDonationAt  DateTime?
+  lastDonationAt   DateTime?
+  status           String               @default("active") // Enum: DonorStatus (active, inactive)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  deletedAt        DateTime?
+  communications   DonorCommunication[]
+  taxReceipts      TaxReceipt[]
+  donations        Donation[]
+
+  @@index([segment])
+  @@index([status])
+  @@index([email])
+  @@index([ic])
+  @@index([phone])
+}
+
+model DonorCommunication {
+  id        String             @id @default(uuid())
+  donorId   String
+  type      String             // Enum: CommunicationType (email, phone, whatsapp)
+  subject   String
+  content   String?
+  status    String             @default("sent") // Enum: CommunicationStatus (sent, draft, failed)
+  sentAt    DateTime?
+  sentById  String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  donor     Donor              @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  sentBy    User?              @relation(fields: [sentById], references: [id])
+
+  @@index([donorId])
+  @@index([type])
+}
+
+model TaxReceipt {
+  id            String    @id @default(uuid())
+  receiptNumber String    @unique
+  donorId       String
+  donationId    String?
+  amount        Decimal
+  donationDate  DateTime
+  purpose       String    @default("Sumbangan amal kepada PUSPA")
+  lhdnRef       String?
+  issuedAt      DateTime  @default(now())
+  issuedBy      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  donor         Donor     @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  donation      Donation? @relation(fields: [donationId], references: [id], onDelete: SetNull)
+
+  @@index([donorId])
+  @@index([receiptNumber])
+}
+
+model Document {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  category    String    // Enum: DocumentCategory (pendaftaran, tadbir_urus, kewangan, pematuhan, operasi, program)
+  subcategory String?
+  fileName    String
+  fileSize    Int       @default(0)
+  mimeType    String?
+  fileUrl     String?
+  version     Int       @default(1)
+  status      String    @default("active") // Enum: DocumentStatus (active, archived, deleted)
+  uploadedBy  String?
+  expiryDate  DateTime?
+  tags        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category])
+  @@index([status])
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  address   String?
+  city      String?
+  state     String?
+  phone     String?
+  email     String?
+  headName  String?
+  headPhone String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([code])
+}
+
+model WorkItem {
+  id                String           @id @default(uuid())
+  workItemNumber    String           @unique
+  title             String
+  project           String           @default("PUSPA")
+  domain            String
+  sourceChannel     String           @default("conductor")
+  requestText       String
+  intent            String
+  status            String           @default("queued")
+  priority          String           @default("normal")
+  currentStep       String?
+  nextAction        String?
+  blockerReason     String?
+  resolutionSummary String?
+  tags              String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  startedAt         DateTime?
+  completedAt       DateTime?
+  artifacts         Artifact[]
+  automationJobs    AutomationJob[]
+  executionEvents   ExecutionEvent[]
+
+  @@index([status])
+  @@index([domain])
+  @@index([intent])
+  @@index([createdAt])
+}
+
+model ExecutionEvent {
+  id         String   @id @default(uuid())
+  workItemId String
+  type       String
+  summary    String
+  detail     String?
+  toolName   String?
+  status     String   @default("success")
+  latencyMs  Int?
+  errorCode  String?
+  createdAt  DateTime @default(now())
+  workItem   WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@index([workItemId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Artifact {
+  id         String    @id @default(uuid())
+  workItemId String?
+  type       String
+  title      String
+  summary    String?
+  pathOrRef  String?
+  metadata   String?
+  createdAt  DateTime  @default(now())
+  workItem   WorkItem? @relation(fields: [workItemId], references: [id])
+
+  @@index([workItemId])
+  @@index([type])
+}
+
+model AutomationJob {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  kind           String    @default("one_time")
+  expr           String?
+  tz             String    @default("Asia/Kuala_Lumpur")
+  domain         String    @default("general")
+  relatedProject String    @default("PUSPA")
+  workItemId     String?
+  isEnabled      Boolean   @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  lastResult     String?
+  failureState   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  workItem       WorkItem? @relation(fields: [workItemId], references: [id])
+
+  @@index([isEnabled])
+  @@index([nextRunAt])
+}
+
+// Bot API Key for service accounts (e.g., PuspaCareBot)
+model BotApiKey {
+  id          String   @id @default(uuid())
+  name        String   // e.g., "PuspaCareBot"
+  key         String   @unique // hashed API key, never plain text
+  keyPrefix   String   // first 8 chars for display, e.g., "psbot_abc"
+  role        String   @default("bot") // bot, admin_bot, ops_bot
+  permissions String   @default("[]") // array of allowed permissions
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([keyPrefix])
+  @@index([isActive])
+}
+
+// ============================================================
+// Hermes Agent — Self-Improving AI Assistant
+// ============================================================
+
+model HermesConversation {
+  id          String            @id @default(uuid())
+  userId      String
+  title       String            @default("Sesi Baru")
+  viewContext String            @default("dashboard")
+  provider    String            @default("zai") // Enum: HermesProvider (zai, openrouter, ollama)
+  model       String            @default("default")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  messages    HermesMessage[]
+  skills      HermesSkill[]
+  user        User              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+model HermesMessage {
+  id             String            @id @default(uuid())
+  conversationId String
+  role           String            // Enum: HermesMessageRole (user, assistant, system)
+  content        String
+  toolCalls      String?           // JSON array of tool calls made
+  toolResults    String?           // JSON array of tool results
+  model          String?
+  provider       String?
+  tokensUsed     Int               @default(0)
+  latencyMs      Int?
+  createdAt      DateTime          @default(now())
+  conversation   HermesConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model HermesSkill {
+  id              String             @id @default(uuid())
+  name            String
+  description     String
+  category        String             @default("general")
+  instructions    String             // The SKILL.md content
+  triggerPatterns String?            // JSON array of patterns that trigger this skill
+  version         Int                @default(1)
+  usageCount      Int                @default(0)
+  successRate     Float              @default(0)
+  source          String             @default("auto") // Enum: HermesSkillSource (auto, manual, imported)
+  isActive        Boolean            @default(true)
+  userId          String?
+  conversationId  String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  conversation    HermesConversation? @relation(fields: [conversationId], references: [id])
+  user            User?              @relation(fields: [userId], references: [id])
+
+  @@index([name])
+  @@index([category])
+  @@index([isActive])
+  @@index([userId])
+}
+
+model HermesMemory {
+  id           String    @id @default(uuid())
+  userId       String
+  category     String    @default("general") // Enum: HermesMemoryCategory (preference, fact, procedure, context, general)
+  key          String
+  value        String
+  source       String    @default("conversation") // Enum: HermesMemorySource (conversation, manual, skill)
+  confidence   Float     @default(1.0)
+  accessCount  Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastAccessed DateTime?
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@index([category])
+  @@index([isActive])
+}
+
+model HermesProviderConfig {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  provider  String   @default("zai") // Enum: HermesProvider (zai, openrouter, ollama)
+  model     String   @default("default")
+  apiKey    String?  // Encrypted API key for OpenRouter etc.
+  baseUrl   String?  // Custom base URL for Ollama etc.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

@@ -1,0 +1,544 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+.asnafpreneur-root {
+  --bg-primary: transparent;
+  --bg-secondary: rgba(25, 28, 30, 0.4);
+  --bg-card: rgba(25, 28, 30, 0.6);
+  --bg-card-hover: rgba(35, 38, 40, 0.7);
+  --border-dim: rgba(255, 255, 255, 0.1);
+  --border-glow: rgba(236, 178, 255, 0.3);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --accent-emerald: #ecb2ff; /* Using Primary Purple */
+  --accent-cyan: #00fbfb;
+  --accent-violet: #ecb2ff;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+  --glow-emerald: 0 0 40px rgba(236, 178, 255, 0.15);
+  --glow-cyan: 0 0 40px rgba(0, 251, 251, 0.15);
+  --glow-violet: 0 0 40px rgba(236, 178, 255, 0.2);
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.asnafpreneur-root * { box-sizing: border-box; margin: 0; padding: 0; }
+
+.asnafpreneur-root .grain-overlay {
+  position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat; background-size: 256px 256px;
+}
+
+.asnafpreneur-root section { position: relative; padding: 6rem 1.5rem; max-width: 1200px; margin: 0 auto; }
+@media (max-width: 768px) { .asnafpreneur-root section { padding: 4rem 1rem; } }
+
+.asnafpreneur-root .pill-nav {
+  position: fixed; top: 1.25rem; left: 50%; transform: translateX(-50%); z-index: 100;
+  display: flex; gap: 0.25rem; padding: 0.3rem;
+  background: rgba(10,10,16,0.85); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--border-dim); border-radius: 50px;
+}
+.asnafpreneur-root .pill-nav a {
+  display: block; padding: 0.5rem 1.1rem; border-radius: 50px;
+  font-size: 0.8rem; font-weight: 500; text-decoration: none;
+  color: var(--text-secondary); transition: all 0.25s ease;
+  cursor: pointer; font-family: var(--font-body); white-space: nowrap;
+}
+.asnafpreneur-root .pill-nav a:hover, .asnafpreneur-root .pill-nav a.active {
+  background: var(--accent-emerald); color: #fff;
+}
+@media (max-width: 768px) {
+  .asnafpreneur-root .pill-nav { display: none; }
+}
+
+.asnafpreneur-root .hero {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  position: relative; overflow: hidden;
+}
+.asnafpreneur-root .hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(75, 0, 130, 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 20%, rgba(139,92,246,0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(6,182,212,0.1) 0%, transparent 50%);
+}
+.asnafpreneur-root .hero-grid {
+  position: absolute; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black, transparent);
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black, transparent);
+}
+.asnafpreneur-root .hero-content { position: relative; z-index: 1; max-width: 850px; }
+.asnafpreneur-root .hero-badge {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 1rem; border-radius: 50px; font-size: 0.75rem;
+  background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2);
+  color: var(--accent-emerald); font-weight: 500; margin-bottom: 1.5rem;
+  font-family: var(--font-mono);
+}
+.asnafpreneur-root .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald); animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.asnafpreneur-root .hero h1 {
+  font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 700; line-height: 1.15; margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+.asnafpreneur-root .hero h1 .gradient-text {
+  background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan), #3b82f6, var(--accent-violet));
+  background-size: 300% 300%;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 8s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.asnafpreneur-root .hero-subtitle {
+  font-size: clamp(1rem, 2vw, 1.25rem); color: var(--text-secondary);
+  max-width: 600px; margin: 0 auto 2.5rem;
+}
+
+.asnafpreneur-root .rotating-wrapper {
+  display: block; position: relative; overflow: hidden;
+  height: 1.15em;
+  width: 100%;
+}
+
+.asnafpreneur-root .cta-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.asnafpreneur-root .btn-primary {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.85rem 2rem; border-radius: 12px; font-weight: 600;
+  font-size: 0.95rem; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent-emerald), #059669);
+  color: #fff; text-decoration: none; transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(16,185,129,0.3);
+  font-family: var(--font-body);
+}
+.asnafpreneur-root .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(16,185,129,0.4); }
+.asnafpreneur-root .btn-secondary {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.85rem 2rem; border-radius: 12px; font-weight: 600;
+  font-size: 0.95rem; cursor: pointer;
+  background: transparent; color: var(--text-primary);
+  border: 1px solid var(--border-dim); text-decoration: none;
+  transition: all 0.3s ease; font-family: var(--font-body);
+}
+.asnafpreneur-root .btn-secondary:hover { border-color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+
+.asnafpreneur-root .stats-section { padding: 3rem 1.5rem; }
+.asnafpreneur-root .stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+  max-width: 900px; margin: 0 auto;
+}
+@media (max-width: 768px) { .asnafpreneur-root .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+.asnafpreneur-root .stat-item { text-align: center; padding: 1.5rem; }
+.asnafpreneur-root .stat-number {
+  font-family: var(--font-display); font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700; color: var(--accent-emerald);
+  line-height: 1;
+}
+.asnafpreneur-root .stat-label { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem; }
+
+.asnafpreneur-root .cards-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
+}
+@media (max-width: 900px) { .asnafpreneur-root .cards-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .asnafpreneur-root .cards-grid { grid-template-columns: 1fr; } }
+
+.asnafpreneur-root .spotlight-card {
+  position: relative; padding: 2.5rem; border-radius: 24px;
+  background: rgba(13,13,21,0.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--border-dim);
+  overflow: hidden; cursor: pointer; transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.asnafpreneur-root .glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.asnafpreneur-root .spotlight-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: 24px;
+  background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16,185,129,0.12), transparent 40%);
+  opacity: 0; transition: opacity 0.5s;
+}
+.asnafpreneur-root .spotlight-card::after {
+  content: ''; position: absolute; inset: 0; border-radius: 24px;
+  background: radial-gradient(400px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16,185,129,0.3), transparent 60%);
+  opacity: 0; transition: opacity 0.5s; z-index: -1;
+  filter: blur(20px);
+}
+.asnafpreneur-root .spotlight-card:hover::before, 
+.asnafpreneur-root .spotlight-card:hover::after { opacity: 1; }
+.asnafpreneur-root .spotlight-card:hover { border-color: rgba(16,185,129,0.3); transform: translateY(-8px) scale(1.02); }
+.asnafpreneur-root .card-icon {
+  width: 48px; height: 48px; border-radius: 12px; display: flex;
+  align-items: center; justify-content: center; margin-bottom: 1.25rem;
+  font-size: 1.25rem;
+}
+.asnafpreneur-root .card-icon.emerald { background: rgba(16,185,129,0.1); color: var(--accent-emerald); }
+.asnafpreneur-root .card-icon.cyan { background: rgba(6,182,212,0.1); color: var(--accent-cyan); }
+.asnafpreneur-root .card-icon.violet { background: rgba(139,92,246,0.1); color: var(--accent-violet); }
+.asnafpreneur-root .card-icon.amber { background: rgba(245,158,11,0.1); color: var(--accent-amber); }
+.asnafpreneur-root .card-icon.rose { background: rgba(244,63,94,0.1); color: var(--accent-rose); }
+.asnafpreneur-root .spotlight-card h3 {
+  font-family: var(--font-display); font-size: 1.15rem;
+  font-weight: 600; margin-bottom: 0.75rem;
+}
+.asnafpreneur-root .spotlight-card p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+
+.asnafpreneur-root .section-header { text-align: center; margin-bottom: 3.5rem; }
+.asnafpreneur-root .section-tag {
+  display: inline-block; padding: 0.3rem 0.8rem; border-radius: 50px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 1rem;
+  font-family: var(--font-mono);
+}
+.asnafpreneur-root .section-tag.emerald { background: rgba(16,185,129,0.1); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.2); }
+.asnafpreneur-root .section-tag.cyan { background: rgba(6,182,212,0.1); color: var(--accent-cyan); border: 1px solid rgba(6,182,212,0.2); }
+.asnafpreneur-root .section-tag.violet { background: rgba(139,92,246,0.1); color: var(--accent-violet); border: 1px solid rgba(139,92,246,0.2); }
+.asnafpreneur-root .section-tag.amber { background: rgba(245,158,11,0.1); color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.2); }
+.asnafpreneur-root .section-header h2 {
+  font-family: var(--font-display); font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 700; margin-bottom: 1rem;
+}
+.asnafpreneur-root .section-header p { color: var(--text-secondary); max-width: 550px; margin: 0 auto; font-size: 1.05rem; }
+
+.asnafpreneur-root .stepper { display: flex; flex-direction: column; gap: 0; max-width: 700px; margin: 0 auto; position: relative; }
+.asnafpreneur-root .stepper::before {
+  content: ''; position: absolute; left: 24px; top: 48px; bottom: 48px;
+  width: 2px; background: var(--border-dim);
+}
+.asnafpreneur-root .step {
+  display: flex; gap: 1.5rem; padding: 1.5rem 0; position: relative;
+  opacity: 0.4; transition: all 0.5s ease;
+}
+.asnafpreneur-root .step.active { opacity: 1; }
+.asnafpreneur-root .step-number {
+  width: 48px; height: 48px; min-width: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem;
+  background: var(--bg-card); border: 2px solid var(--border-dim);
+  position: relative; z-index: 1; transition: all 0.3s ease;
+}
+.asnafpreneur-root .step.active .step-number {
+  background: var(--accent-emerald); border-color: var(--accent-emerald);
+  color: #fff; box-shadow: var(--glow-emerald);
+}
+.asnafpreneur-root .step-content h3 {
+  font-family: var(--font-display); font-size: 1.1rem;
+  font-weight: 600; margin-bottom: 0.4rem;
+}
+.asnafpreneur-root .step-content p { font-size: 0.9rem; color: var(--text-secondary); }
+.asnafpreneur-root .step-content .step-duration {
+  display: inline-block; margin-top: 0.5rem; padding: 0.2rem 0.6rem;
+  border-radius: 6px; font-size: 0.7rem; font-family: var(--font-mono);
+  background: rgba(16,185,129,0.1); color: var(--accent-emerald);
+}
+
+.asnafpreneur-root .logo-section { padding: 4rem 0; overflow: hidden; }
+.asnafpreneur-root .logo-track {
+  display: flex; gap: 3rem; animation: scroll-logos 30s linear infinite;
+  width: max-content;
+}
+.asnafpreneur-root .logo-track:hover { animation-play-state: paused; }
+@keyframes scroll-logos { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.asnafpreneur-root .logo-item {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem;
+  border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-dim);
+  white-space: nowrap; font-size: 0.85rem; font-weight: 500;
+  color: var(--text-secondary); min-width: max-content;
+  transition: all 0.3s ease;
+}
+.asnafpreneur-root .logo-item:hover { border-color: var(--accent-emerald); color: var(--text-primary); }
+
+.asnafpreneur-root .ideas-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem;
+}
+.asnafpreneur-root .bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(180px, auto);
+  gap: 1.5rem;
+}
+@media (max-width: 1024px) {
+  .asnafpreneur-root .bento-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .asnafpreneur-root .bento-grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
+}
+
+.asnafpreneur-root .bento-item { grid-column: span 1; }
+.asnafpreneur-root .bento-item-large { grid-column: span 2; grid-row: span 2; }
+.asnafpreneur-root .bento-item-wide { grid-column: span 2; }
+@media (max-width: 768px) { .asnafpreneur-root .ideas-grid { grid-template-columns: 1fr; } }
+.asnafpreneur-root .idea-card {
+  display: flex; gap: 1rem; padding: 1.25rem; border-radius: 12px;
+  background: var(--bg-card); border: 1px solid var(--border-dim);
+  transition: all 0.3s ease; cursor: pointer;
+}
+.asnafpreneur-root .idea-card:hover { border-color: rgba(16,185,129,0.2); transform: translateX(4px); }
+.asnafpreneur-root .idea-emoji { font-size: 1.5rem; min-width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(16,185,129,0.06); }
+.asnafpreneur-root .idea-info h4 { font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.2rem; }
+.asnafpreneur-root .idea-info p { font-size: 0.8rem; color: var(--text-secondary); }
+.asnafpreneur-root .idea-price { font-size: 0.7rem; color: var(--accent-emerald); font-family: var(--font-mono); margin-top: 0.25rem; }
+
+.asnafpreneur-root .cta-final {
+  text-align: center; padding: 6rem 1.5rem; position: relative;
+  max-width: 1200px; margin: 0 auto;
+}
+.asnafpreneur-root .cta-final-bg {
+  position: absolute; inset: 2rem; border-radius: 24px;
+  background: linear-gradient(135deg, rgba(16,185,129,0.05), rgba(139,92,246,0.05));
+  border: 1px solid var(--border-dim);
+}
+.asnafpreneur-root .cta-final-content { position: relative; z-index: 1; }
+
+.asnafpreneur-root footer {
+  text-align: center; padding: 3rem 1.5rem; border-top: 1px solid var(--border-dim);
+  max-width: 1200px; margin: 0 auto;
+}
+.asnafpreneur-root footer p { font-size: 0.8rem; color: var(--text-muted); }
+
+.asnafpreneur-root .dock-wrapper {
+  position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%);
+  z-index: 100; display: none;
+}
+@media (max-width: 768px) { .asnafpreneur-root .dock-wrapper { display: flex; } }
+.asnafpreneur-root .dock {
+  display: flex; gap: 0.4rem; padding: 0.5rem 0.75rem;
+  background: rgba(10,10,16,0.9); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--border-dim); border-radius: 20px;
+}
+.asnafpreneur-root .dock-item {
+  padding: 0.85rem 2rem; border-radius: 12px; font-weight: 600;
+  font-size: 0.95rem; cursor: pointer;
+  background: transparent; color: var(--text-primary);
+  border: 1px solid var(--border-dim); text-decoration: none;
+  transition: all 0.3s ease; font-family: var(--font-body);
+}
+.asnafpreneur-root .btn-secondary:hover { border-color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+
+.asnafpreneur-root .stats-section { padding: 3rem 1.5rem; }
+.asnafpreneur-root .stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+  max-width: 900px; margin: 0 auto;
+}
+@media (max-width: 768px) { .asnafpreneur-root .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+.asnafpreneur-root .stat-item { text-align: center; padding: 1.5rem; }
+.asnafpreneur-root .stat-number {
+  font-family: var(--font-display); font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700; color: var(--accent-emerald);
+  line-height: 1;
+}
+.asnafpreneur-root .stat-label { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem; }
+
+.asnafpreneur-root .cards-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
+}
+@media (max-width: 900px) { .asnafpreneur-root .cards-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .asnafpreneur-root .cards-grid { grid-template-columns: 1fr; } }
+
+.asnafpreneur-root .spotlight-card {
+  position: relative; padding: 2.5rem; border-radius: 24px;
+  background: rgba(13,13,21,0.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--border-dim);
+  overflow: hidden; cursor: pointer; transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.asnafpreneur-root .glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.asnafpreneur-root .spotlight-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: 24px;
+  background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16,185,129,0.12), transparent 40%);
+  opacity: 0; transition: opacity 0.5s;
+}
+.asnafpreneur-root .spotlight-card::after {
+  content: ''; position: absolute; inset: 0; border-radius: 24px;
+  background: radial-gradient(400px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16,185,129,0.3), transparent 60%);
+  opacity: 0; transition: opacity 0.5s; z-index: -1;
+  filter: blur(20px);
+}
+.asnafpreneur-root .spotlight-card:hover::before, 
+.asnafpreneur-root .spotlight-card:hover::after { opacity: 1; }
+.asnafpreneur-root .spotlight-card:hover { border-color: rgba(16,185,129,0.3); transform: translateY(-8px) scale(1.02); }
+.asnafpreneur-root .card-icon {
+  width: 48px; height: 48px; border-radius: 12px; display: flex;
+  align-items: center; justify-content: center; margin-bottom: 1.25rem;
+  font-size: 1.25rem;
+}
+.asnafpreneur-root .card-icon.emerald { background: rgba(16,185,129,0.1); color: var(--accent-emerald); }
+.asnafpreneur-root .card-icon.cyan { background: rgba(6,182,212,0.1); color: var(--accent-cyan); }
+.asnafpreneur-root .card-icon.violet { background: rgba(139,92,246,0.1); color: var(--accent-violet); }
+.asnafpreneur-root .card-icon.amber { background: rgba(245,158,11,0.1); color: var(--accent-amber); }
+.asnafpreneur-root .card-icon.rose { background: rgba(244,63,94,0.1); color: var(--accent-rose); }
+.asnafpreneur-root .spotlight-card h3 {
+  font-family: var(--font-display); font-size: 1.15rem;
+  font-weight: 600; margin-bottom: 0.75rem;
+}
+.asnafpreneur-root .spotlight-card p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+
+.asnafpreneur-root .section-header { text-align: center; margin-bottom: 3.5rem; }
+.asnafpreneur-root .section-tag {
+  display: inline-block; padding: 0.3rem 0.8rem; border-radius: 50px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 1rem;
+  font-family: var(--font-mono);
+}
+.asnafpreneur-root .section-tag.emerald { background: rgba(16,185,129,0.1); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.2); }
+.asnafpreneur-root .section-tag.cyan { background: rgba(6,182,212,0.1); color: var(--accent-cyan); border: 1px solid rgba(6,182,212,0.2); }
+.asnafpreneur-root .section-tag.violet { background: rgba(139,92,246,0.1); color: var(--accent-violet); border: 1px solid rgba(139,92,246,0.2); }
+.asnafpreneur-root .section-tag.amber { background: rgba(245,158,11,0.1); color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.2); }
+.asnafpreneur-root .section-header h2 {
+  font-family: var(--font-display); font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 700; margin-bottom: 1rem;
+}
+.asnafpreneur-root .section-header p { color: var(--text-secondary); max-width: 550px; margin: 0 auto; font-size: 1.05rem; }
+
+.asnafpreneur-root .stepper { display: flex; flex-direction: column; gap: 0; max-width: 700px; margin: 0 auto; position: relative; }
+.asnafpreneur-root .stepper::before {
+  content: ''; position: absolute; left: 24px; top: 48px; bottom: 48px;
+  width: 2px; background: var(--border-dim);
+}
+.asnafpreneur-root .step {
+  display: flex; gap: 1.5rem; padding: 1.5rem 0; position: relative;
+  opacity: 0.4; transition: all 0.5s ease;
+}
+.asnafpreneur-root .step.active { opacity: 1; }
+.asnafpreneur-root .step-number {
+  width: 48px; height: 48px; min-width: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem;
+  background: var(--bg-card); border: 2px solid var(--border-dim);
+  position: relative; z-index: 1; transition: all 0.3s ease;
+}
+.asnafpreneur-root .step.active .step-number {
+  background: var(--accent-emerald); border-color: var(--accent-emerald);
+  color: #fff; box-shadow: var(--glow-emerald);
+}
+.asnafpreneur-root .step-content h3 {
+  font-family: var(--font-display); font-size: 1.1rem;
+  font-weight: 600; margin-bottom: 0.4rem;
+}
+.asnafpreneur-root .step-content p { font-size: 0.9rem; color: var(--text-secondary); }
+.asnafpreneur-root .step-content .step-duration {
+  display: inline-block; margin-top: 0.5rem; padding: 0.2rem 0.6rem;
+  border-radius: 6px; font-size: 0.7rem; font-family: var(--font-mono);
+  background: rgba(16,185,129,0.1); color: var(--accent-emerald);
+}
+
+.asnafpreneur-root .logo-section { padding: 4rem 0; overflow: hidden; }
+.asnafpreneur-root .logo-track {
+  display: flex; gap: 3rem; animation: scroll-logos 30s linear infinite;
+  width: max-content;
+}
+.asnafpreneur-root .logo-track:hover { animation-play-state: paused; }
+@keyframes scroll-logos { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.asnafpreneur-root .logo-item {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem;
+  border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-dim);
+  white-space: nowrap; font-size: 0.85rem; font-weight: 500;
+  color: var(--text-secondary); min-width: max-content;
+  transition: all 0.3s ease;
+}
+.asnafpreneur-root .logo-item:hover { border-color: var(--accent-emerald); color: var(--text-primary); }
+
+.asnafpreneur-root .ideas-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem;
+}
+.asnafpreneur-root .bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(180px, auto);
+  gap: 1.5rem;
+}
+@media (max-width: 1024px) {
+  .asnafpreneur-root .bento-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .asnafpreneur-root .bento-grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
+}
+
+.asnafpreneur-root .bento-item { grid-column: span 1; }
+.asnafpreneur-root .bento-item-large { grid-column: span 2; grid-row: span 2; }
+.asnafpreneur-root .bento-item-wide { grid-column: span 2; }
+@media (max-width: 768px) { .asnafpreneur-root .ideas-grid { grid-template-columns: 1fr; } }
+.asnafpreneur-root .idea-card {
+  display: flex; gap: 1rem; padding: 1.25rem; border-radius: 12px;
+  background: var(--bg-card); border: 1px solid var(--border-dim);
+  transition: all 0.3s ease; cursor: pointer;
+}
+.asnafpreneur-root .idea-card:hover { border-color: rgba(16,185,129,0.2); transform: translateX(4px); }
+.asnafpreneur-root .idea-emoji { font-size: 1.5rem; min-width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(16,185,129,0.06); }
+.asnafpreneur-root .idea-info h4 { font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.2rem; }
+.asnafpreneur-root .idea-info p { font-size: 0.8rem; color: var(--text-secondary); }
+.asnafpreneur-root .idea-price { font-size: 0.7rem; color: var(--accent-emerald); font-family: var(--font-mono); margin-top: 0.25rem; }
+
+.asnafpreneur-root .cta-final {
+  text-align: center; padding: 6rem 1.5rem; position: relative;
+  max-width: 1200px; margin: 0 auto;
+}
+.asnafpreneur-root .cta-final-bg {
+  position: absolute; inset: 2rem; border-radius: 24px;
+  background: linear-gradient(135deg, rgba(16,185,129,0.05), rgba(139,92,246,0.05));
+  border: 1px solid var(--border-dim);
+}
+.asnafpreneur-root .cta-final-content { position: relative; z-index: 1; }
+
+.asnafpreneur-root footer {
+  text-align: center; padding: 3rem 1.5rem; border-top: 1px solid var(--border-dim);
+  max-width: 1200px; margin: 0 auto;
+}
+.asnafpreneur-root footer p { font-size: 0.8rem; color: var(--text-muted); }
+
+.asnafpreneur-root .dock-wrapper {
+  position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%);
+  z-index: 100; display: none;
+}
+@media (max-width: 768px) { .asnafpreneur-root .dock-wrapper { display: flex; } }
+.asnafpreneur-root .dock {
+  display: flex; gap: 0.4rem; padding: 0.5rem 0.75rem;
+  background: rgba(10,10,16,0.9); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--border-dim); border-radius: 20px;
+}
+.asnafpreneur-root .dock-item {
+  width: 44px; height: 44px; border-radius: 12px; display: flex;
+  align-items: center; justify-content: center; cursor: pointer;
+  transition: all 0.2s ease; color: var(--text-secondary);
+  text-decoration: none; font-size: 0.75rem;
+}
+.asnafpreneur-root .dock-item:hover { transform: scale(1.3) translateY(-8px); color: var(--accent-emerald); background: rgba(16,185,129,0.1); }
+.asnafpreneur-root .dock-item svg { width: 20px; height: 20px; }
+
+.asnafpreneur-root .divider {
+  max-width: 1200px; margin: 0 auto; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-dim), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black, transparent);
+  mask-image: linear-gradient(to right, transparent, black, transparent);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asnafpreneur-root .logo-track { animation: none !important; }
+  .asnafpreneur-root .hero-grid { display: none; }
+}
