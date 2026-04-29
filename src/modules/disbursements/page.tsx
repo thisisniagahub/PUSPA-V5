@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'sonner';
 import {
   Banknote,
   Clock,
@@ -13,7 +14,6 @@ import {
   Search,
   Eye,
   Edit2,
-  X,
   Calendar,
   FileText,
   ChevronLeft,
@@ -22,7 +22,6 @@ import {
   Ban,
   Play,
   Check,
-  ArrowRight,
   Building2,
   CreditCard,
   User,
@@ -31,7 +30,7 @@ import {
   Target,
 } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -45,14 +44,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import {
   Select,
@@ -77,6 +74,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { api } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +103,31 @@ interface Disbursement {
   createdAt: string;
 }
 
+interface DisbursementApiRecord {
+  id: string;
+  disbursementNumber: string;
+  amount: number;
+  purpose: string;
+  status: string;
+  recipientName: string;
+  recipientIC: string | null;
+  recipientBank: string | null;
+  recipientAcc: string | null;
+  scheduledDate: string | null;
+  processedDate: string | null;
+  receiptUrl: string | null;
+  notes: string | null;
+  approvedById: string | null;
+  caseId: string | null;
+  programmeId: string | null;
+  memberId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  case: { id: string; caseNumber: string; title: string } | null;
+  programme: { id: string; name: string } | null;
+  member: { id: string; name: string; memberNumber: string } | null;
+}
+
 interface DisbursementFormData {
   recipientName: string;
   recipientIC: string;
@@ -112,8 +135,6 @@ interface DisbursementFormData {
   accountNumber: string;
   amount: string;
   purpose: string;
-  linkedCase: string;
-  linkedProgramme: string;
   scheduledDate: string;
   notes: string;
 }
@@ -179,24 +200,6 @@ const BANK_OPTIONS = [
   'HSBC Bank',
 ];
 
-const CASE_OPTIONS = [
-  'KES-2024-001 - Bantuan Sara Hidup Keluarga Ahmad',
-  'KES-2024-002 - Pembiayaan Perubatan Puan Siti',
-  'KES-2024-003 - Bantuan Pendidikan Anak Yatim',
-  'KES-2024-004 - Pembinaan Rumah Mangsa Banjir',
-  'KES-2024-005 - Bantuan Usahawan Kecil',
-  'KES-2024-006 - Sokongan OKU',
-];
-
-const PROGRAMME_OPTIONS = [
-  'PRG-001 - Program Bantuan Sara Hidup',
-  'PRG-002 - Program Kesihatan Komuniti',
-  'PRG-003 - Program Pendidikan Anak-anak',
-  'PRG-004 - Program Pembangunan Komuniti',
-  'PRG-005 - Program Keusahawanan',
-  'PRG-006 - Program Sokongan OKU',
-];
-
 const FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Semua' },
   { value: 'pending', label: 'Menunggu' },
@@ -216,208 +219,44 @@ const disbursementSchema = z.object({
   accountNumber: z.string().optional(),
   amount: z.string().min(1, 'Jumlah diperlukan'),
   purpose: z.string().min(1, 'Tujuan diperlukan'),
-  linkedCase: z.string().optional(),
-  linkedProgramme: z.string().optional(),
   scheduledDate: z.string().optional(),
   notes: z.string().optional(),
 });
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── API Mapping ─────────────────────────────────────────────────────────────
 
-const INITIAL_DATA: Disbursement[] = [
-  {
-    id: '1',
-    no: 'DB-0001',
-    recipientName: 'Ahmad bin Ismail',
-    recipientIC: '850101-01-5123',
-    bankName: 'Maybank',
-    accountNumber: '1234 5678 9012',
-    amount: 1500,
-    purpose: 'Bantuan sara hidup bulan Januari 2025 untuk keluarga yang memerlukan.',
-    linkedCase: 'KES-2024-001 - Bantuan Sara Hidup Keluarga Ahmad',
-    linkedProgramme: 'PRG-001 - Program Bantuan Sara Hidup',
-    scheduledDate: '2025-01-15',
-    notes: 'Keluarga dengan 4 orang anak. Bapa bekerja sebagai pemandu teksi.',
-    status: 'completed',
-    createdAt: '2025-01-02',
-  },
-  {
-    id: '2',
-    no: 'DB-0002',
-    recipientName: 'Siti binti Hassan',
-    recipientIC: '900215-03-5456',
-    bankName: 'CIMB Bank',
-    accountNumber: '2345 6789 0123',
-    amount: 3000,
-    purpose: 'Pembiayaan pembedahan dan rawatan lanjut di Hospital Universiti.',
-    linkedCase: 'KES-2024-002 - Pembiayaan Perubatan Puan Siti',
-    linkedProgramme: 'PRG-002 - Program Kesihatan Komuniti',
-    scheduledDate: '2025-01-20',
-    notes: 'Pesakit kanser tahap 2. Memerlukan rawatan segera.',
-    status: 'approved',
-    createdAt: '2025-01-05',
-  },
-  {
-    id: '3',
-    no: 'DB-0003',
-    recipientName: 'Mohd Farid bin Ali',
-    recipientIC: '880512-14-5789',
-    bankName: 'Public Bank',
-    accountNumber: '3456 7890 1234',
-    amount: 800,
-    purpose: 'Yuran sekolah dan buku teks untuk semester pertama.',
-    linkedCase: 'KES-2024-003 - Bantuan Pendidikan Anak Yatim',
-    linkedProgramme: 'PRG-003 - Program Pendidikan Anak-anak',
-    scheduledDate: '2025-01-18',
-    notes: 'Pelajar cemerlang di Sekolah Menengah Kebangsaan Hulu Kelang.',
-    status: 'pending',
-    createdAt: '2025-01-08',
-  },
-  {
-    id: '4',
-    no: 'DB-0004',
-    recipientName: 'Nurul Aisyah binti Md Noor',
-    recipientIC: '920830-07-5234',
-    bankName: 'RHB Bank',
-    accountNumber: '4567 8901 2345',
-    amount: 5000,
-    purpose: 'Pembinaan semula rumah yang rosak teruk akibat banjir.',
-    linkedCase: 'KES-2024-004 - Pembinaan Rumah Mangsa Banjir',
-    linkedProgramme: 'PRG-004 - Program Pembangunan Komuniti',
-    scheduledDate: '2025-02-01',
-    notes: 'Rumah separuh musnah. Keluarga tinggal sementara di pusat pemindahan.',
-    status: 'processing',
-    createdAt: '2025-01-10',
-  },
-  {
-    id: '5',
-    no: 'DB-0005',
-    recipientName: 'Rajesh a/l Subramaniam',
-    recipientIC: '950710-08-5678',
-    bankName: 'Hong Leong Bank',
-    accountNumber: '5678 9012 3456',
-    amount: 2000,
-    purpose: 'Modal permulaan perniagaan makanan ringan di kawasan perumahan.',
-    linkedCase: 'KES-2024-005 - Bantuan Usahawan Kecil',
-    linkedProgramme: 'PRG-005 - Program Keusahawanan',
-    scheduledDate: '2025-01-25',
-    notes: 'Usahawan muda. Telah mengikuti kursus keusahawanan asas.',
-    status: 'pending',
-    createdAt: '2025-01-12',
-  },
-  {
-    id: '6',
-    no: 'DB-0006',
-    recipientName: 'Lee Siew Ling',
-    recipientIC: '870325-10-5901',
-    bankName: 'AmBank',
-    accountNumber: '6789 0123 4567',
-    amount: 1200,
-    purpose: 'Bantuan peralatan sokongan untuk orang kurang upaya.',
-    linkedCase: 'KES-2024-006 - Sokongan OKU',
-    linkedProgramme: 'PRG-006 - Program Sokongan OKU',
-    scheduledDate: '2025-01-22',
-    notes: 'Kerusi roda dan alat bantu pendengaran.',
-    status: 'completed',
-    createdAt: '2025-01-03',
-  },
-  {
-    id: '7',
-    no: 'DB-0007',
-    recipientName: 'Fatimah binti Abdullah',
-    recipientIC: '930618-05-5345',
-    bankName: 'Bank Islam',
-    accountNumber: '7890 1234 5678',
-    amount: 450,
-    purpose: 'Bantuan keperluan harian dan barangan runcit.',
-    linkedCase: 'KES-2024-001 - Bantuan Sara Hidup Keluarga Ahmad',
-    linkedProgramme: 'PRG-001 - Program Bantuan Sara Hidup',
-    scheduledDate: '2025-01-10',
-    notes: 'Ibu tunggal dengan 3 orang anak.',
-    status: 'failed',
-    createdAt: '2025-01-06',
-  },
-  {
-    id: '8',
-    no: 'DB-0008',
-    recipientName: 'Kumar a/l Muthu',
-    recipientIC: '810405-01-5890',
-    bankName: 'Bank Rakyat',
-    accountNumber: '8901 2345 6789',
-    amount: 2500,
-    purpose: 'Pembaikan saluran paip dan bekalan air di rumah.',
-    linkedCase: 'KES-2024-004 - Pembinaan Rumah Mangsa Banjir',
-    linkedProgramme: 'PRG-004 - Program Pembangunan Komuniti',
-    scheduledDate: '2025-02-05',
-    notes: 'Kerosakan berpunca dari banjir Disember lalu.',
-    status: 'pending',
-    createdAt: '2025-01-14',
-  },
-  {
-    id: '9',
-    no: 'DB-0009',
-    recipientName: 'Aminah binti Yusof',
-    recipientIC: '900912-04-5612',
-    bankName: 'BSN',
-    accountNumber: '9012 3456 7890',
-    amount: 600,
-    purpose: 'Yuran kursus komputer asas untuk meningkatkan kemahiran.',
-    linkedCase: 'KES-2024-005 - Bantuan Usahawan Kecil',
-    linkedProgramme: 'PRG-005 - Program Keusahawanan',
-    scheduledDate: '2025-01-28',
-    notes: 'Ingin memulakan perniagaan dalam talian.',
-    status: 'cancelled',
-    createdAt: '2025-01-09',
-  },
-  {
-    id: '10',
-    no: 'DB-0010',
-    recipientName: 'Tan Wei Ming',
-    recipientIC: '960123-14-5478',
-    bankName: 'UOB Bank',
-    accountNumber: '0123 4567 8901',
-    amount: 750,
-    purpose: 'Pembelian buku rujukan dan alat tulis untuk peperiksaan SPM.',
-    linkedCase: 'KES-2024-003 - Bantuan Pendidikan Anak Yatim',
-    linkedProgramme: 'PRG-003 - Program Pendidikan Anak-anak',
-    scheduledDate: '2025-01-30',
-    notes: 'Pelajar tingkatan 5 dari keluarga berpendapatan rendah.',
-    status: 'approved',
-    createdAt: '2025-01-11',
-  },
-  {
-    id: '11',
-    no: 'DB-0011',
-    recipientName: 'Zulkifli bin Hamid',
-    recipientIC: '840628-01-5234',
-    bankName: 'OCBC Bank',
-    accountNumber: '1122 3344 5566',
-    amount: 1800,
-    purpose: 'Bantuan perubatan untuk rawatan diabetes dan komplikasi buah pinggang.',
-    linkedCase: 'KES-2024-002 - Pembiayaan Perubatan Puan Siti',
-    linkedProgramme: 'PRG-002 - Program Kesihatan Komuniti',
-    scheduledDate: '2025-02-10',
-    notes: 'Pesakit diabetes kronik. Memerlukan dialisis dua kali seminggu.',
-    status: 'processing',
-    createdAt: '2025-01-13',
-  },
-  {
-    id: '12',
-    no: 'DB-0012',
-    recipientName: 'Susila a/p Rajan',
-    recipientIC: '990517-10-5670',
-    bankName: 'HSBC Bank',
-    accountNumber: '2233 4455 6677',
-    amount: 350,
-    purpose: 'Bantuan makanan tambahan dan susu untuk kanak-kanak kurang pemakanan.',
-    linkedCase: 'KES-2024-006 - Sokongan OKU',
-    linkedProgramme: 'PRG-006 - Program Sokongan OKU',
-    scheduledDate: '2025-01-16',
-    notes: 'Anak berusia 3 tahun dengan masalah kurang berat badan.',
-    status: 'pending',
-    createdAt: '2025-01-15',
-  },
-];
+function mapDisbursementFromApi(record: DisbursementApiRecord): Disbursement {
+  // API uses 'disbursed', UI uses 'completed'
+  let status: DisbursementStatus = record.status as DisbursementStatus;
+  if (record.status === 'disbursed') status = 'completed';
+
+  return {
+    id: record.id,
+    no: record.disbursementNumber,
+    recipientName: record.recipientName,
+    recipientIC: record.recipientIC || '',
+    bankName: record.recipientBank || '',
+    accountNumber: record.recipientAcc || '',
+    amount: record.amount,
+    purpose: record.purpose,
+    linkedCase: record.case
+      ? `${record.case.caseNumber} - ${record.case.title}`
+      : '',
+    linkedProgramme: record.programme ? record.programme.name : '',
+    scheduledDate: record.scheduledDate
+      ? record.scheduledDate.split('T')[0]
+      : '',
+    notes: record.notes || '',
+    status,
+    createdAt: record.createdAt.split('T')[0],
+  };
+}
+
+// Map UI status back to API status
+function mapStatusToApi(status: DisbursementStatus): string {
+  if (status === 'completed') return 'disbursed';
+  return status;
+}
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
 
@@ -435,19 +274,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function generateNo(existing: Disbursement[]): string {
-  if (existing.length === 0) return 'DB-0001';
-  const numbers = existing.map((d) => parseInt(d.no.replace('DB-', ''), 10));
-  const maxNo = Math.max(...numbers);
-  return `DB-${String(maxNo + 1).padStart(4, '0')}`;
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DisbursementsPage() {
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [data, setData] = useState<Disbursement[]>(INITIAL_DATA);
+  const [data, setData] = useState<Disbursement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -462,7 +296,29 @@ export default function DisbursementsPage() {
 
   // Alert dialog state
   const [alertOpen, setAlertOpen] = useState(false);
-  const [alertAction, setAlertAction] = useState<'reject' | 'cancel' | null>(null);
+  const [alertAction, setAlertAction] = useState<'reject' | 'cancel' | null>(
+    null
+  );
+
+  // ── Load Data ────────────────────────────────────────────────────────────
+  const loadDisbursements = async () => {
+    try {
+      setLoading(true);
+      const records = await api.get<DisbursementApiRecord[]>('/disbursements', {
+        pageSize: 100,
+      });
+      setData(records.map(mapDisbursementFromApi));
+    } catch {
+      setData([]);
+      toast.error('Gagal memuatkan data pembayaran');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDisbursements();
+  }, []);
 
   // ── Computed ─────────────────────────────────────────────────────────────
   const filteredData = useMemo(() => {
@@ -512,8 +368,6 @@ export default function DisbursementsPage() {
       accountNumber: '',
       amount: '',
       purpose: '',
-      linkedCase: '',
-      linkedProgramme: '',
       scheduledDate: '',
       notes: '',
     },
@@ -529,8 +383,6 @@ export default function DisbursementsPage() {
       accountNumber: '',
       amount: '',
       purpose: '',
-      linkedCase: '',
-      linkedProgramme: '',
       scheduledDate: '',
       notes: '',
     });
@@ -546,8 +398,6 @@ export default function DisbursementsPage() {
       accountNumber: item.accountNumber || '',
       amount: String(item.amount),
       purpose: item.purpose,
-      linkedCase: item.linkedCase || '',
-      linkedProgramme: item.linkedProgramme || '',
       scheduledDate: item.scheduledDate || '',
       notes: item.notes || '',
     });
@@ -559,71 +409,105 @@ export default function DisbursementsPage() {
     setSheetOpen(true);
   }
 
-  function onSubmit(formData: DisbursementFormData) {
-    if (editingId) {
-      setData((prev) =>
-        prev.map((d) =>
-          d.id === editingId
-            ? {
-                ...d,
-                recipientName: formData.recipientName,
-                recipientIC: formData.recipientIC,
-                bankName: formData.bankName,
-                accountNumber: formData.accountNumber,
-                amount: parseFloat(formData.amount) || 0,
-                purpose: formData.purpose,
-                linkedCase: formData.linkedCase,
-                linkedProgramme: formData.linkedProgramme,
-                scheduledDate: formData.scheduledDate,
-                notes: formData.notes,
-              }
-            : d
-        )
+  async function onSubmit(formData: DisbursementFormData) {
+    try {
+      setSubmitting(true);
+
+      if (editingId) {
+        const updated = await api.put<DisbursementApiRecord>('/disbursements', {
+          id: editingId,
+          recipientName: formData.recipientName,
+          recipientIC: formData.recipientIC || undefined,
+          recipientBank: formData.bankName || undefined,
+          recipientAcc: formData.accountNumber || undefined,
+          amount: parseFloat(formData.amount) || 0,
+          purpose: formData.purpose,
+          scheduledDate: formData.scheduledDate || undefined,
+          notes: formData.notes || undefined,
+        });
+        const mapped = mapDisbursementFromApi(updated);
+        setData((prev) =>
+          prev.map((d) => (d.id === editingId ? mapped : d))
+        );
+        toast.success('Pembayaran berjaya dikemas kini');
+      } else {
+        const created = await api.post<DisbursementApiRecord>('/disbursements', {
+          recipientName: formData.recipientName,
+          recipientIC: formData.recipientIC || undefined,
+          recipientBank: formData.bankName || undefined,
+          recipientAcc: formData.accountNumber || undefined,
+          amount: parseFloat(formData.amount) || 0,
+          purpose: formData.purpose,
+          scheduledDate: formData.scheduledDate || undefined,
+          notes: formData.notes || undefined,
+        });
+        const mapped = mapDisbursementFromApi(created);
+        setData((prev) => [mapped, ...prev]);
+        toast.success('Pembayaran berjaya dibuat');
+      }
+
+      setDialogOpen(false);
+      form.reset();
+      setEditingId(null);
+    } catch {
+      toast.error(
+        editingId
+          ? 'Gagal mengemas kini pembayaran'
+          : 'Gagal membuat pembayaran'
       );
-    } else {
-      const newItem: Disbursement = {
-        id: String(Date.now()),
-        no: generateNo(data),
-        recipientName: formData.recipientName,
-        recipientIC: formData.recipientIC,
-        bankName: formData.bankName,
-        accountNumber: formData.accountNumber,
-        amount: parseFloat(formData.amount) || 0,
-        purpose: formData.purpose,
-        linkedCase: formData.linkedCase,
-        linkedProgramme: formData.linkedProgramme,
-        scheduledDate: formData.scheduledDate,
-        notes: formData.notes,
-        status: 'pending',
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      setData((prev) => [...prev, newItem]);
+    } finally {
+      setSubmitting(false);
     }
-    setDialogOpen(false);
-    form.reset();
-    setEditingId(null);
   }
 
-  function advanceStatus(id: string) {
-    setData((prev) =>
-      prev.map((d) => {
-        if (d.id !== id) return d;
-        const flow: Record<string, DisbursementStatus> = {
-          pending: 'approved',
-          approved: 'processing',
-          processing: 'completed',
-        };
-        return flow[d.status] ? { ...d, status: flow[d.status] } : d;
-      })
-    );
+  async function advanceStatus(id: string) {
+    const item = data.find((d) => d.id === id);
+    if (!item) return;
+
+    const flow: Record<string, DisbursementStatus> = {
+      pending: 'approved',
+      approved: 'processing',
+      processing: 'completed',
+    };
+
+    const nextStatus = flow[item.status];
+    if (!nextStatus) return;
+
+    try {
+      const updated = await api.put<DisbursementApiRecord>('/disbursements', {
+        id,
+        status: mapStatusToApi(nextStatus),
+      });
+      const mapped = mapDisbursementFromApi(updated);
+      setData((prev) => prev.map((d) => (d.id === id ? mapped : d)));
+      toast.success('Status pembayaran dikemas kini');
+    } catch {
+      toast.error('Gagal mengemas kini status pembayaran');
+    }
   }
 
-  function handleRejectOrCancel() {
+  async function handleRejectOrCancel() {
     if (!viewingItem || !alertAction) return;
-    const newStatus: DisbursementStatus = alertAction === 'reject' ? 'failed' : 'cancelled';
-    setData((prev) =>
-      prev.map((d) => (d.id === viewingItem.id ? { ...d, status: newStatus } : d))
-    );
+    const newStatus: DisbursementStatus =
+      alertAction === 'reject' ? 'failed' : 'cancelled';
+
+    try {
+      await api.put<DisbursementApiRecord>('/disbursements', {
+        id: viewingItem.id,
+        status: mapStatusToApi(newStatus),
+      });
+      setData((prev) =>
+        prev.map((d) => (d.id === viewingItem.id ? { ...d, status: newStatus } : d))
+      );
+      toast.success(
+        alertAction === 'reject'
+          ? 'Pembayaran telah ditolak'
+          : 'Pembayaran telah dibatalkan'
+      );
+    } catch {
+      toast.error('Gagal mengemas kini status pembayaran');
+    }
+
     setAlertOpen(false);
     setAlertAction(null);
     setSheetOpen(false);
@@ -671,10 +555,16 @@ export default function DisbursementsPage() {
               <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${iconColor}`} />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm text-muted-foreground truncate">{title}</p>
-              <p className="text-lg sm:text-2xl font-bold tracking-tight">{value}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                {title}
+              </p>
+              <p className="text-lg sm:text-2xl font-bold tracking-tight">
+                {value}
+              </p>
               {subtitle && (
-                <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {subtitle}
+                </p>
               )}
             </div>
           </div>
@@ -690,18 +580,24 @@ export default function DisbursementsPage() {
           <div className="flex items-start justify-between gap-2 mb-3">
             <div>
               <p className="font-semibold text-sm">{item.no}</p>
-              <p className="text-sm text-muted-foreground">{item.recipientName}</p>
+              <p className="text-sm text-muted-foreground">
+                {item.recipientName}
+              </p>
             </div>
             <StatusBadge status={item.status} />
           </div>
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Jumlah</span>
-              <span className="font-semibold text-emerald-700">{formatCurrency(item.amount)}</span>
+              <span className="font-semibold text-emerald-700">
+                {formatCurrency(item.amount)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tujuan</span>
-              <span className="text-right max-w-[60%] truncate">{item.purpose}</span>
+              <span className="text-right max-w-[60%] truncate">
+                {item.purpose}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tarikh</span>
@@ -740,14 +636,6 @@ export default function DisbursementsPage() {
       control: form.control,
       name: 'bankName',
     });
-    const linkedCase = useWatch({
-      control: form.control,
-      name: 'linkedCase',
-    });
-    const linkedProgramme = useWatch({
-      control: form.control,
-      name: 'linkedProgramme',
-    });
 
     return (
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
@@ -769,7 +657,9 @@ export default function DisbursementsPage() {
               {...form.register('recipientName')}
             />
             {form.formState.errors.recipientName && (
-              <p className="text-xs text-red-500">{form.formState.errors.recipientName.message}</p>
+              <p className="text-xs text-red-500">
+                {form.formState.errors.recipientName.message}
+              </p>
             )}
           </div>
 
@@ -808,7 +698,10 @@ export default function DisbursementsPage() {
           </div>
 
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="accountNumber" className="flex items-center gap-1.5">
+            <Label
+              htmlFor="accountNumber"
+              className="flex items-center gap-1.5"
+            >
               <CreditCard className="h-3.5 w-3.5" />
               No. Akaun Bank
             </Label>
@@ -843,12 +736,17 @@ export default function DisbursementsPage() {
               {...form.register('amount')}
             />
             {form.formState.errors.amount && (
-              <p className="text-xs text-red-500">{form.formState.errors.amount.message}</p>
+              <p className="text-xs text-red-500">
+                {form.formState.errors.amount.message}
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="scheduledDate" className="flex items-center gap-1.5">
+            <Label
+              htmlFor="scheduledDate"
+              className="flex items-center gap-1.5"
+            >
               <Calendar className="h-3.5 w-3.5" />
               Tarikh Dijadualkan
             </Label>
@@ -871,62 +769,10 @@ export default function DisbursementsPage() {
               {...form.register('purpose')}
             />
             {form.formState.errors.purpose && (
-              <p className="text-xs text-red-500">{form.formState.errors.purpose.message}</p>
+              <p className="text-xs text-red-500">
+                {form.formState.errors.purpose.message}
+              </p>
             )}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Linked records */}
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Kes &amp; Program Berkaitan
-          </h3>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="linkedCase" className="flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5" />
-              Kes Berkaitan
-            </Label>
-            <Select
-              value={linkedCase}
-              onValueChange={(val) => form.setValue('linkedCase', val)}
-            >
-              <SelectTrigger id="linkedCase">
-                <SelectValue placeholder="Pilih kes" />
-              </SelectTrigger>
-              <SelectContent>
-                {CASE_OPTIONS.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="linkedProgramme" className="flex items-center gap-1.5">
-              <Target className="h-3.5 w-3.5" />
-              Program Berkaitan
-            </Label>
-            <Select
-              value={linkedProgramme}
-              onValueChange={(val) => form.setValue('linkedProgramme', val)}
-            >
-              <SelectTrigger id="linkedProgramme">
-                <SelectValue placeholder="Pilih program" />
-              </SelectTrigger>
-              <SelectContent>
-                {PROGRAMME_OPTIONS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -948,10 +794,26 @@ export default function DisbursementsPage() {
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDialogOpen(false)}
+            disabled={submitting}
+          >
             Batal
           </Button>
-          <Button type="submit">{editingId ? 'Kemaskini' : 'Buat Pembayaran'}</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {editingId ? 'Menyimpan...' : 'Memproses...'}
+              </>
+            ) : editingId ? (
+              'Kemaskini'
+            ) : (
+              'Buat Pembayaran'
+            )}
+          </Button>
         </div>
       </form>
     );
@@ -964,7 +826,12 @@ export default function DisbursementsPage() {
     const cfg = STATUS_CONFIG[item.status];
 
     function getAvailableActions() {
-      const actions: { label: string; action: () => void; variant: 'default' | 'destructive' | 'outline'; icon: React.ElementType }[] = [];
+      const actions: {
+        label: string;
+        action: () => void;
+        variant: 'default' | 'destructive' | 'outline';
+        icon: React.ElementType;
+      }[] = [];
 
       if (item.status === 'pending') {
         actions.push({
@@ -1023,20 +890,34 @@ export default function DisbursementsPage() {
             Aliran Kerja
           </p>
           <div className="flex items-center justify-between gap-1">
-            {(['pending', 'approved', 'processing', 'completed'] as const).map((step, idx) => {
+            {(
+              ['pending', 'approved', 'processing', 'completed'] as const
+            ).map((step, idx) => {
               const stepLabels: Record<string, string> = {
                 pending: 'Menunggu',
                 approved: 'Diluluskan',
                 processing: 'Diproses',
                 completed: 'Berjaya',
               };
-              const statusOrder = ['pending', 'approved', 'processing', 'completed', 'failed', 'cancelled'];
+              const statusOrder = [
+                'pending',
+                'approved',
+                'processing',
+                'completed',
+                'failed',
+                'cancelled',
+              ];
               const currentIdx = statusOrder.indexOf(viewingItem.status);
               const stepIdx = statusOrder.indexOf(step);
 
               const isActive = viewingItem.status === step;
-              const isDone = stepIdx < currentIdx || (viewingItem.status === 'completed');
-              const isTerminalFailed = (viewingItem.status === 'failed' || viewingItem.status === 'cancelled') && stepIdx > currentIdx;
+              const isDone =
+                stepIdx < currentIdx ||
+                viewingItem.status === 'completed';
+              const isTerminalFailed =
+                (viewingItem.status === 'failed' ||
+                  viewingItem.status === 'cancelled') &&
+                stepIdx > currentIdx;
 
               return (
                 <React.Fragment key={step}>
@@ -1079,7 +960,8 @@ export default function DisbursementsPage() {
               );
             })}
           </div>
-          {(viewingItem.status === 'failed' || viewingItem.status === 'cancelled') && (
+          {(viewingItem.status === 'failed' ||
+            viewingItem.status === 'cancelled') && (
             <div className="mt-3 text-center">
               <Badge
                 variant="outline"
@@ -1101,15 +983,21 @@ export default function DisbursementsPage() {
           <div className="grid gap-3 text-sm">
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">No. KP</span>
-              <span className="font-medium">{viewingItem.recipientIC || '-'}</span>
+              <span className="font-medium">
+                {viewingItem.recipientIC || '-'}
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Bank</span>
-              <span className="font-medium">{viewingItem.bankName || '-'}</span>
+              <span className="font-medium">
+                {viewingItem.bankName || '-'}
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">No. Akaun</span>
-              <span className="font-medium font-mono">{viewingItem.accountNumber || '-'}</span>
+              <span className="font-medium font-mono">
+                {viewingItem.accountNumber || '-'}
+              </span>
             </div>
           </div>
         </div>
@@ -1130,15 +1018,23 @@ export default function DisbursementsPage() {
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Tujuan</span>
-              <span className="font-medium text-right max-w-[60%]">{viewingItem.purpose}</span>
+              <span className="font-medium text-right max-w-[60%]">
+                {viewingItem.purpose}
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Tarikh Dijadualkan</span>
-              <span className="font-medium">{formatDate(viewingItem.scheduledDate)}</span>
+              <span className="text-muted-foreground">
+                Tarikh Dijadualkan
+              </span>
+              <span className="font-medium">
+                {formatDate(viewingItem.scheduledDate)}
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Tarikh Dicipta</span>
-              <span className="font-medium">{formatDate(viewingItem.createdAt)}</span>
+              <span className="font-medium">
+                {formatDate(viewingItem.createdAt)}
+              </span>
             </div>
           </div>
         </div>
@@ -1146,64 +1042,104 @@ export default function DisbursementsPage() {
         <Separator />
 
         {/* Linked records */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Kes &amp; Program Berkaitan
-          </h4>
-          <div className="grid gap-3 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Kes</span>
-              <span className="font-medium text-right max-w-[60%]">
-                {viewingItem.linkedCase || '-'}
-              </span>
+        {(viewingItem.linkedCase || viewingItem.linkedProgramme) && (
+          <>
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Kes &amp; Program Berkaitan
+              </h4>
+              <div className="grid gap-3 text-sm">
+                {viewingItem.linkedCase && (
+                  <div className="flex justify-between py-1 border-b border-border/50">
+                    <span className="text-muted-foreground">Kes</span>
+                    <span className="font-medium text-right max-w-[60%]">
+                      {viewingItem.linkedCase}
+                    </span>
+                  </div>
+                )}
+                {viewingItem.linkedProgramme && (
+                  <div className="flex justify-between py-1 border-b border-border/50">
+                    <span className="text-muted-foreground">Program</span>
+                    <span className="font-medium text-right max-w-[60%]">
+                      {viewingItem.linkedProgramme}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Program</span>
-              <span className="font-medium text-right max-w-[60%]">
-                {viewingItem.linkedProgramme || '-'}
-              </span>
-            </div>
-          </div>
-        </div>
+            <Separator />
+          </>
+        )}
 
         {/* Notes */}
         {viewingItem.notes && (
           <>
-            <Separator />
             <div className="space-y-2">
               <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Catatan
               </h4>
-              <p className="text-sm bg-muted/50 rounded-lg p-3">{viewingItem.notes}</p>
+              <p className="text-sm bg-muted/50 rounded-lg p-3">
+                {viewingItem.notes}
+              </p>
             </div>
+            <Separator />
           </>
         )}
 
         {/* Action buttons */}
         {actions.length > 0 && (
-          <>
-            <Separator />
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Tindakan
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {actions.map((act) => (
-                  <Button
-                    key={act.label}
-                    variant={act.variant}
-                    size="sm"
-                    onClick={act.action}
-                    className="gap-1.5"
-                  >
-                    <act.icon className="h-4 w-4" />
-                    {act.label}
-                  </Button>
-                ))}
-              </div>
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Tindakan
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {actions.map((act) => (
+                <Button
+                  key={act.label}
+                  variant={act.variant}
+                  size="sm"
+                  onClick={act.action}
+                  className="gap-1.5"
+                >
+                  <act.icon className="h-4 w-4" />
+                  {act.label}
+                </Button>
+              ))}
             </div>
-          </>
+          </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Loading State ───────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0c10] text-white p-4 lg:p-8">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-5%] right-[-5%] w-[30%] h-[30%] bg-emerald-600/10 blur-[100px] animate-pulse" />
+          <div className="absolute bottom-[-5%] left-[-5%] w-[30%] h-[30%] bg-blue-600/10 blur-[100px] animate-pulse delay-1000" />
+        </div>
+        <div className="relative z-10 max-w-7xl mx-auto space-y-6">
+          <div className="mb-6 space-y-2">
+            <div className="h-8 w-56 animate-pulse rounded bg-white/10" />
+            <div className="h-4 w-80 animate-pulse rounded bg-white/10" />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="border shadow-sm">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="h-12 animate-pulse rounded bg-muted/50" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card className="border shadow-sm">
+            <CardContent className="p-0">
+              <div className="h-64 animate-pulse bg-muted/30" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -1218,195 +1154,297 @@ export default function DisbursementsPage() {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/5 backdrop-blur-xl border-b border-white/10 shadow-sm rounded-2xl">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Pengurusan Pembayaran
-              </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                Urus dan jejak semua pembayaran disbursement PUSPA
-              </p>
+        {/* Header */}
+        <header className="sticky top-0 z-30 bg-white/5 backdrop-blur-xl border-b border-white/10 shadow-sm rounded-2xl">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+                  Pengurusan Pembayaran
+                </h1>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                  Urus dan jejak semua pembayaran disbursement PUSPA
+                </p>
+              </div>
+              <Button onClick={openCreateDialog} className="gap-2 shadow-sm">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Buat Pembayaran</span>
+                <span className="sm:hidden">Buat</span>
+              </Button>
             </div>
-            <Button onClick={openCreateDialog} className="gap-2 shadow-sm">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Buat Pembayaran</span>
-              <span className="sm:hidden">Buat</span>
-            </Button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <SummaryCard
-            icon={Banknote}
-            title="Jumlah Pembayaran"
-            value={formatCurrency(summaryStats.totalAmount)}
-            subtitle={`${data.length} transaksi`}
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
-          />
-          <SummaryCard
-            icon={Clock}
-            title="Menunggu Kelulusan"
-            value={String(summaryStats.pending)}
-            subtitle="Memerlukan tindakan"
-            iconBg="bg-amber-100"
-            iconColor="text-amber-600"
-          />
-          <SummaryCard
-            icon={Loader2}
-            title="Sedang Diproses"
-            value={String(summaryStats.processing)}
-            subtitle="Dalam pemprosesan"
-            iconBg="bg-cyan-100"
-            iconColor="text-cyan-600"
-          />
-          <SummaryCard
-            icon={CheckCircle}
-            title="Berjaya"
-            value={String(summaryStats.completed)}
-            subtitle="Pembayaran selesai"
-            iconBg="bg-green-100"
-            iconColor="text-green-600"
-          />
-        </div>
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <SummaryCard
+              icon={Banknote}
+              title="Jumlah Pembayaran"
+              value={formatCurrency(summaryStats.totalAmount)}
+              subtitle={`${data.length} transaksi`}
+              iconBg="bg-emerald-100"
+              iconColor="text-emerald-600"
+            />
+            <SummaryCard
+              icon={Clock}
+              title="Menunggu Kelulusan"
+              value={String(summaryStats.pending)}
+              subtitle="Memerlukan tindakan"
+              iconBg="bg-amber-100"
+              iconColor="text-amber-600"
+            />
+            <SummaryCard
+              icon={Loader2}
+              title="Sedang Diproses"
+              value={String(summaryStats.processing)}
+              subtitle="Dalam pemprosesan"
+              iconBg="bg-cyan-100"
+              iconColor="text-cyan-600"
+            />
+            <SummaryCard
+              icon={CheckCircle}
+              title="Berjaya"
+              value={String(summaryStats.completed)}
+              subtitle="Pembayaran selesai"
+              iconBg="bg-green-100"
+              iconColor="text-green-600"
+            />
+          </div>
 
-        {/* Filter bar */}
-        <Card className="border shadow-sm">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cari nama penerima atau no. pembayaran..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
+          {/* Filter bar */}
+          <Card className="border shadow-sm">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cari nama penerima atau no. pembayaran..."
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(val) => {
+                    setStatusFilter(val);
                     setCurrentPage(1);
                   }}
-                  className="pl-9"
-                />
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FILTER_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={statusFilter}
-                onValueChange={(val) => {
-                  setStatusFilter(val);
-                  setCurrentPage(1);
-                }}
-              >
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FILTER_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Desktop Table */}
-        <Card className="border shadow-sm hidden md:block">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="w-[130px] text-xs font-semibold">No. Pembayaran</TableHead>
-                    <TableHead className="text-xs font-semibold">Penerima</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Jumlah (RM)</TableHead>
-                    <TableHead className="text-xs font-semibold max-w-[200px]">Tujuan</TableHead>
-                    <TableHead className="text-xs font-semibold">Status</TableHead>
-                    <TableHead className="text-xs font-semibold">Tarikh</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Tindakan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedData.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                        <div className="flex flex-col items-center gap-2">
-                          <Search className="h-8 w-8 opacity-30" />
-                          <p>Tiada pembayaran dijumpai</p>
-                          <p className="text-xs">
-                            Cuba ubah carian atau tapis status
-                          </p>
-                        </div>
-                      </TableCell>
+          {/* Desktop Table */}
+          <Card className="border shadow-sm hidden md:block">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="w-[130px] text-xs font-semibold">
+                        No. Pembayaran
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold">
+                        Penerima
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold">
+                        Jumlah (RM)
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold max-w-[200px]">
+                        Tujuan
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold">
+                        Tarikh
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold">
+                        Tindakan
+                      </TableHead>
                     </TableRow>
-                  ) : (
-                    paginatedData.map((item) => (
-                      <TableRow key={item.id} className="group">
-                        <TableCell className="font-mono text-sm font-medium">
-                          {item.no}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{item.recipientName}</p>
-                            <p className="text-xs text-muted-foreground">{item.recipientIC}</p>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedData.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="text-center py-12 text-muted-foreground"
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <Search className="h-8 w-8 opacity-30" />
+                            <p>Tiada pembayaran dijumpai</p>
+                            <p className="text-xs">
+                              Cuba ubah carian atau tapis status
+                            </p>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-sm">
-                          {formatCurrency(item.amount)}
-                        </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <p className="text-sm truncate" title={item.purpose}>
-                            {item.purpose}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={item.status} />
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(item.createdAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => openViewSheet(item)}
-                              title="Lihat butiran"
+                      </TableRow>
+                    ) : (
+                      paginatedData.map((item) => (
+                        <TableRow key={item.id} className="group">
+                          <TableCell className="font-mono text-sm font-medium">
+                            {item.no}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-sm">
+                                {item.recipientName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.recipientIC}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-sm">
+                            {formatCurrency(item.amount)}
+                          </TableCell>
+                          <TableCell className="max-w-[200px]">
+                            <p
+                              className="text-sm truncate"
+                              title={item.purpose}
                             >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {item.status === 'pending' && (
+                              {item.purpose}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={item.status} />
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDate(item.createdAt)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => openEditDialog(item)}
-                                title="Edit"
+                                onClick={() => openViewSheet(item)}
+                                title="Lihat butiran"
                               >
-                                <Edit2 className="h-4 w-4" />
+                                <Eye className="h-4 w-4" />
                               </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                              {item.status === 'pending' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => openEditDialog(item)}
+                                  title="Edit"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
 
-            {/* Pagination */}
+              {/* Pagination */}
+              {filteredData.length > ITEMS_PER_PAGE && (
+                <div className="flex items-center justify-between border-t px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Menunjukkan{' '}
+                    {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                    {Math.min(
+                      currentPage * ITEMS_PER_PAGE,
+                      filteredData.length
+                    )}{' '}
+                    daripada {filteredData.length}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={currentPage === 1}
+                      onClick={() =>
+                        setCurrentPage((p) => Math.max(1, p - 1))
+                      }
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from(
+                      { length: totalPages },
+                      (_, i) => i + 1
+                    ).map((page) => (
+                      <Button
+                        key={page}
+                        variant={
+                          currentPage === page ? 'default' : 'outline'
+                        }
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={currentPage === totalPages}
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(totalPages, p + 1))
+                      }
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {paginatedData.length === 0 ? (
+              <Card className="border">
+                <CardContent className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+                  <Search className="h-8 w-8 opacity-30" />
+                  <p>Tiada pembayaran dijumpai</p>
+                  <p className="text-xs">
+                    Cuba ubah carian atau tapis status
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              paginatedData.map((item) => (
+                <MobileCard key={item.id} item={item} />
+              ))
+            )}
+
+            {/* Mobile pagination */}
             {filteredData.length > ITEMS_PER_PAGE && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <p className="text-sm text-muted-foreground">
-                  Menunjukkan {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} daripada{' '}
-                  {filteredData.length}
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs text-muted-foreground">
+                  {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                  {Math.min(
+                    currentPage * ITEMS_PER_PAGE,
+                    filteredData.length
+                  )}{' '}
+                  / {filteredData.length}
                 </p>
                 <div className="flex items-center gap-1">
                   <Button
@@ -1414,148 +1452,110 @@ export default function DisbursementsPage() {
                     size="icon"
                     className="h-8 w-8"
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.max(1, p - 1))
+                    }
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? 'default' : 'outline'}
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
+                  <span className="text-sm px-2 font-medium">
+                    {currentPage} / {totalPages}
+                  </span>
                   <Button
                     variant="outline"
                     size="icon"
                     className="h-8 w-8"
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden space-y-3">
-          {paginatedData.length === 0 ? (
-            <Card className="border">
-              <CardContent className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
-                <Search className="h-8 w-8 opacity-30" />
-                <p>Tiada pembayaran dijumpai</p>
-                <p className="text-xs">Cuba ubah carian atau tapis status</p>
-              </CardContent>
-            </Card>
-          ) : (
-            paginatedData.map((item) => <MobileCard key={item.id} item={item} />)
-          )}
-
-          {/* Mobile pagination */}
-          {filteredData.length > ITEMS_PER_PAGE && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-muted-foreground">
-                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} /{' '}
-                {filteredData.length}
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm px-2 font-medium">
-                  {currentPage} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* ── Create/Edit Dialog ──────────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {editingId ? (
-                <>
-                  <Edit2 className="h-5 w-5" />
-                  Kemaskini Pembayaran
-                </>
-              ) : (
-                <>
-                  <Plus className="h-5 w-5" />
-                  Buat Pembayaran Baharu
-                </>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          <DisbursementForm />
-        </DialogContent>
-      </Dialog>
-
-      {/* ── View Sheet ──────────────────────────────────────────────────── */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto border-white/10 bg-slate-900 text-white">
-          <SheetHeader className="border-b border-white/10 pb-4">
-            <SheetTitle className="flex items-center gap-2 text-white">
-              <Eye className="h-5 w-5" />
-              Butiran Pembayaran
-            </SheetTitle>
-          </SheetHeader>
-          <div className="mt-4">
-            <ViewSheetContent />
           </div>
-        </SheetContent>
-      </Sheet>
+        </main>
 
-      {/* ── Alert Dialog for Reject/Cancel ──────────────────────────────── */}
-      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
-        <AlertDialogContent className="border-white/10 bg-slate-900 text-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-white">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              {alertAction === 'reject' ? 'Tolak Pembayaran' : 'Batalkan Pembayaran'}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-white/70">
-              {alertAction === 'reject'
-                ? 'Anda pasti ingin menolak pembayaran ini? Tindakan ini tidak boleh diundur.'
-                : 'Anda pasti ingin membatalkan pembayaran ini? Tindakan ini tidak boleh diundur.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setAlertAction(null)} className="border-white/10 bg-white/5 text-white hover:bg-white/10">Tidak</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRejectOrCancel}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              Ya, {alertAction === 'reject' ? 'Tolak' : 'Batalkan'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* ── Create/Edit Dialog ──────────────────────────────────────────── */}
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) {
+              form.reset();
+              setEditingId(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {editingId ? (
+                  <>
+                    <Edit2 className="h-5 w-5" />
+                    Kemaskini Pembayaran
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-5 w-5" />
+                    Buat Pembayaran Baharu
+                  </>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <DisbursementForm />
+          </DialogContent>
+        </Dialog>
+
+        {/* ── View Sheet ──────────────────────────────────────────────────── */}
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+          <SheetContent className="w-full sm:max-w-lg overflow-y-auto border-white/10 bg-slate-900 text-white">
+            <SheetHeader className="border-b border-white/10 pb-4">
+              <SheetTitle className="flex items-center gap-2 text-white">
+                <Eye className="h-5 w-5" />
+                Butiran Pembayaran
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <ViewSheetContent />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* ── Alert Dialog for Reject/Cancel ──────────────────────────────── */}
+        <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
+          <AlertDialogContent className="border-white/10 bg-slate-900 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-white">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                {alertAction === 'reject'
+                  ? 'Tolak Pembayaran'
+                  : 'Batalkan Pembayaran'}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-white/70">
+                {alertAction === 'reject'
+                  ? 'Anda pasti ingin menolak pembayaran ini? Tindakan ini tidak boleh diundur.'
+                  : 'Anda pasti ingin membatalkan pembayaran ini? Tindakan ini tidak boleh diundur.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                onClick={() => setAlertAction(null)}
+                className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+              >
+                Tidak
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleRejectOrCancel}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Ya, {alertAction === 'reject' ? 'Tolak' : 'Batalkan'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

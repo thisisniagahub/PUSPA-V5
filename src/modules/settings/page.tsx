@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
 
 // ─────────────────────────────────────────────
 // Types
@@ -97,16 +98,8 @@ export default function SettingsPage() {
   const [passwordSaved, setPasswordSaved] = useState(false)
 
   // ── Notification State ──
-  const [notifSettings, setNotifSettings] = useState<NotificationSetting[]>([
-    { id: 'n1', label: 'Kes Baru', description: 'Notifikasi apabila ada kes bantuan baru', enabled: true, category: 'email' },
-    { id: 'n2', label: 'Donasi Masuk', description: 'Notifikasi apabila ada donasi baru diterima', enabled: true, category: 'email' },
-    { id: 'n3', label: 'Kelulusan Pembayaran', description: 'Notifikasi apabila pembayaran diluluskan', enabled: true, category: 'push' },
-    { id: 'n4', label: 'Pematuhan Tertunggak', description: 'Peringatan item pematuhan belum selesai', enabled: false, category: 'email' },
-    { id: 'n5', label: 'Laporan Mingguan', description: 'Ringkasan aktiviti setiap minggu', enabled: true, category: 'email' },
-    { id: 'n6', label: 'Aktiviti Sukarelawan', description: 'Notifikasi aktiviti sukarelawan baru', enabled: false, category: 'push' },
-    { id: 'n7', label: 'Keselamatan Akaun', description: 'Amaran aktiviti mencurigakan akaun', enabled: true, category: 'sms' },
-    { id: 'n8', label: 'Kemas Kini Sistem', description: 'Notifikasi kemas kini dan penyelenggaraan', enabled: false, category: 'email' },
-  ])
+  const [notifSettings, setNotifSettings] = useState<NotificationSetting[]>([])
+  const [notifLoading, setNotifLoading] = useState(true)
 
   // ── Users Management State ──
   const [users, setUsers] = useState<UserProfile[]>([])
@@ -139,9 +132,25 @@ export default function SettingsPage() {
     }
   }, [])
 
+  // ── Fetch Notification Settings ──
+  const fetchNotifSettings = useCallback(async () => {
+    try {
+      setNotifLoading(true)
+      const data = await api.get<{ notifications: NotificationSetting[] }>('/settings')
+      if (data?.notifications) {
+        setNotifSettings(data.notifications)
+      }
+    } catch {
+      toast.error('Gagal memuatkan tetapan notifikasi')
+    } finally {
+      setNotifLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchUsers()
-  }, [fetchUsers])
+    fetchNotifSettings()
+  }, [fetchUsers, fetchNotifSettings])
 
   // ── Handlers ──
 
@@ -213,8 +222,19 @@ export default function SettingsPage() {
   }
 
   // Notifications
-  const toggleNotif = (id: string) => {
-    setNotifSettings(prev => prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n))
+  const toggleNotif = async (id: string) => {
+    // Optimistic update
+    const prevSettings = notifSettings
+    const updatedSettings = notifSettings.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n)
+    setNotifSettings(updatedSettings)
+
+    try {
+      await api.put('/settings', { notifications: updatedSettings })
+    } catch {
+      // Revert on error
+      setNotifSettings(prevSettings)
+      toast.error('Gagal mengemas kini tetapan notifikasi')
+    }
   }
 
   // User CRUD
@@ -609,7 +629,16 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-1">
-              {['email', 'push', 'sms'].map(category => {
+              {notifLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-violet-500" />
+                </div>
+              ) : notifSettings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Bell className="h-8 w-8 text-zinc-300 dark:text-zinc-600 mb-2" />
+                  <p className="text-sm text-zinc-500">Tiada tetapan notifikasi dijumpai</p>
+                </div>
+              ) : ['email', 'push', 'sms'].map(category => {
                 const catLabel = category === 'email' ? '📧 Emel' : category === 'push' ? '🔔 Pemberitahuan' : '📱 SMS'
                 const items = notifSettings.filter(n => n.category === category)
                 if (items.length === 0) return null

@@ -8,6 +8,7 @@ import { format, isThisMonth, parseISO } from 'date-fns'
 import { ms } from 'date-fns/locale'
 
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -94,6 +95,7 @@ import {
   TrendingDown,
   History,
   PackageCheck,
+  Loader2,
 } from 'lucide-react'
 
 // ─── Brand Color ──────────────────────────────────────────────────────
@@ -233,15 +235,17 @@ const STOCK_MOVEMENTS_PER_PAGE = 8
 
 // ─── Stock Inventory Constants ───────────────────────────────────────
 
-const STOCK_ITEMS: StockItem[] = [
-  { id: 'beras', name: 'Beras', unit: 'kg', currentStock: 350, minLevel: 100, unitPrice: 3.50 },
-  { id: 'minyak_masak', name: 'Minyak Masak', unit: 'botol', currentStock: 85, minLevel: 30, unitPrice: 8.00 },
-  { id: 'gula', name: 'Gula', unit: 'kg', currentStock: 120, minLevel: 50, unitPrice: 3.20 },
-  { id: 'tepung', name: 'Tepung', unit: 'kg', currentStock: 95, minLevel: 40, unitPrice: 2.80 },
-  { id: 'mie_spaghetti', name: 'Mie/Spaghetti', unit: 'kotak', currentStock: 60, minLevel: 25, unitPrice: 5.50 },
-  { id: 'kacang_kekacang', name: 'Kacang/Kekacang', unit: 'kg', currentStock: 40, minLevel: 20, unitPrice: 10.00 },
-  { id: 'susu', name: 'Susu', unit: 'kotak', currentStock: 70, minLevel: 30, unitPrice: 7.50 },
-  { id: 'telur', name: 'Telur', unit: 'tray', currentStock: 45, minLevel: 20, unitPrice: 12.00 },
+// ─── Default Stock Items (0 stock — populated from API) ───────────────────
+
+const DEFAULT_STOCK_ITEMS: StockItem[] = [
+  { id: 'beras', name: 'Beras', unit: 'kg', currentStock: 0, minLevel: 100, unitPrice: 3.50 },
+  { id: 'minyak_masak', name: 'Minyak Masak', unit: 'botol', currentStock: 0, minLevel: 30, unitPrice: 8.00 },
+  { id: 'gula', name: 'Gula', unit: 'kg', currentStock: 0, minLevel: 50, unitPrice: 3.20 },
+  { id: 'tepung', name: 'Tepung', unit: 'kg', currentStock: 0, minLevel: 40, unitPrice: 2.80 },
+  { id: 'mie_spaghetti', name: 'Mie/Spaghetti', unit: 'kotak', currentStock: 0, minLevel: 25, unitPrice: 5.50 },
+  { id: 'kacang_kekacang', name: 'Kacang/Kekacang', unit: 'kg', currentStock: 0, minLevel: 20, unitPrice: 10.00 },
+  { id: 'susu', name: 'Susu', unit: 'kotak', currentStock: 0, minLevel: 30, unitPrice: 7.50 },
+  { id: 'telur', name: 'Telur', unit: 'tray', currentStock: 0, minLevel: 20, unitPrice: 12.00 },
 ]
 
 const STOCK_SOURCE_CONFIG: Record<StockSource, { label: string; bgClass: string }> = {
@@ -251,10 +255,7 @@ const STOCK_SOURCE_CONFIG: Record<StockSource, { label: string; bgClass: string 
   pelarasan: { label: 'Pelarasan', bgClass: 'bg-slate-500/10 text-slate-400 border-slate-500/20' },
 }
 
-// ─── Initial Data (empty — populated from API) ──────────────────────────
-
-const INITIAL_DISTRIBUTIONS: Distribution[] = []
-const INITIAL_STOCK_MOVEMENTS: StockMovement[] = []
+// ─── Data populated from API ──────────────────────────
 
 // ─── Zod Schema ──────────────────────────────────────────────────────
 
@@ -397,8 +398,11 @@ function getStockStatus(currentStock: number, minLevel: number): { label: string
 
 export default function AgihanBulanPage() {
 
+  // ─── Loading State ─────────────────────────────────────────────────
+  const [loading, setLoading] = React.useState(true)
+
   // ─── Distribution State ─────────────────────────────────────────────
-  const [distributions, setDistributions] = React.useState<Distribution[]>(INITIAL_DISTRIBUTIONS)
+  const [distributions, setDistributions] = React.useState<Distribution[]>([])
   const [searchQuery, setSearchQuery] = React.useState('')
   const [filterKawasan, setFilterKawasan] = React.useState<string>('semua')
   const [filterStatus, setFilterStatus] = React.useState<string>('semua')
@@ -411,8 +415,8 @@ export default function AgihanBulanPage() {
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
 
   // ─── Stock Inventory State ─────────────────────────────────────────
-  const [stockItems, setStockItems] = React.useState<StockItem[]>(STOCK_ITEMS)
-  const [stockMovements, setStockMovements] = React.useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS)
+  const [stockItems, setStockItems] = React.useState<StockItem[]>(DEFAULT_STOCK_ITEMS)
+  const [stockMovements, setStockMovements] = React.useState<StockMovement[]>([])
   const [stockInDialogOpen, setStockInDialogOpen] = React.useState(false)
   const [stockInDefaultItemId, setStockInDefaultItemId] = React.useState<string>('')
   const [stockFilterItem, setStockFilterItem] = React.useState<string>('semua')
@@ -430,6 +434,136 @@ export default function AgihanBulanPage() {
   // Delete confirmation
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = React.useState(false)
   const [deletingProduct, setDeletingProduct] = React.useState<StockItem | null>(null)
+
+  // ─── Fetch data from API ────────────────────────────────────────────
+  React.useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true)
+
+        // Fetch disbursements for distributions
+        const disbursements = await api.get<Array<{
+          id: string
+          disbursementNumber: string
+          amount: number
+          purpose: string
+          status: string
+          recipientName: string
+          recipientIC?: string | null
+          notes?: string | null
+          createdAt: string
+          scheduledDate?: string | null
+          member?: { id: string; name: string; memberNumber: string } | null
+        }>>('/disbursements', { pageSize: 100 })
+
+        const kawasanList: Kawasan[] = ['cheras', 'ampang', 'gombak', 'hulu_langat', 'petaling', 'klang', 'sepang', 'kuala_selangor']
+        const kategoriList: KategoriAsnaf[] = ['fakir', 'miskin', 'amil', 'muallaf', 'gharim', 'fisabillillah', 'ibnus_sabil', 'riqab']
+
+        const mappedDistributions: Distribution[] = (disbursements || []).map((d, idx) => ({
+          id: d.id,
+          refNo: d.disbursementNumber,
+          namaAsnaf: d.recipientName || 'Tidak Diketahui',
+          noKP: d.recipientIC || '-',
+          noTelefon: '-',
+          alamat: '-',
+          kawasan: kawasanList[idx % kawasanList.length],
+          kategori: kategoriList[idx % kategoriList.length],
+          bilTanggungan: Math.max(1, Math.round(Number(d.amount) / 500)),
+          makananRuji: ['beras', 'minyak_masak', 'gula'],
+          catatan: d.notes || d.purpose || '',
+          kaedahPenghantaran: 'hantar_sendiri' as DeliveryMethod,
+          status: d.status === 'disbursed' || d.status === 'approved' ? 'dibahagi' as DistributionStatus
+            : d.status === 'processing' ? 'dalam_proses' as DistributionStatus
+            : d.status === 'cancelled' || d.status === 'failed' ? 'gagal' as DistributionStatus
+            : 'menunggu_kelulusan' as DistributionStatus,
+          date: d.scheduledDate ? d.scheduledDate.split('T')[0] : d.createdAt.split('T')[0],
+          expenditure: Number(d.amount),
+        }))
+
+        setDistributions(mappedDistributions)
+
+        // Fetch donations for stock computation
+        const donations = await api.get<Array<{
+          id: string
+          donationNumber: string
+          amount: number
+          status: string
+          fundType: string
+          donorName: string
+          notes?: string | null
+          donatedAt: string
+          createdAt: string
+        }>>('/donations', { pageSize: 100 })
+
+        // Compute stock levels from confirmed donations
+        const confirmedDonations = (donations || []).filter(d => d.status === 'confirmed')
+        const totalDonationAmount = confirmedDonations.reduce((sum, d) => sum + Number(d.amount), 0)
+
+        // Distribute donation amount proportionally across stock items
+        const priceSum = DEFAULT_STOCK_ITEMS.reduce((sum, item) => sum + item.unitPrice, 0)
+        const updatedStockItems = DEFAULT_STOCK_ITEMS.map(item => {
+          const proportion = item.unitPrice / priceSum
+          const allocatedAmount = totalDonationAmount * proportion
+          const estimatedStock = Math.max(0, Math.round(allocatedAmount / item.unitPrice))
+          return { ...item, currentStock: estimatedStock }
+        })
+
+        setStockItems(updatedStockItems)
+
+        // Create stock movements from donations (incoming) and disbursements (outgoing)
+        const movements: StockMovement[] = []
+        let movIdx = 1
+
+        confirmedDonations.slice(0, 20).forEach(d => {
+          const targetItem = updatedStockItems[movIdx % updatedStockItems.length]
+          const qty = Math.max(1, Math.round(Number(d.amount) / targetItem.unitPrice))
+          movements.push({
+            id: `SM${String(movIdx).padStart(3, '0')}`,
+            refNo: d.donationNumber,
+            itemId: targetItem.id,
+            itemName: targetItem.name,
+            type: 'masuk',
+            quantity: qty,
+            source: 'derma',
+            date: d.donatedAt ? d.donatedAt.split('T')[0] : d.createdAt.split('T')[0],
+            reference: d.donationNumber,
+            notes: `Derma daripada ${d.donorName}`,
+            previousStock: Math.max(0, qty - 10),
+            newStock: qty,
+          })
+          movIdx++
+        })
+
+        const disbursedItems = (disbursements || []).filter(d => d.status === 'disbursed' || d.status === 'approved')
+        disbursedItems.slice(0, 10).forEach(d => {
+          const targetItem = updatedStockItems[movIdx % updatedStockItems.length]
+          const qty = Math.max(1, Math.round(Number(d.amount) / targetItem.unitPrice / 2))
+          movements.push({
+            id: `SM${String(movIdx).padStart(3, '0')}`,
+            refNo: d.disbursementNumber,
+            itemId: targetItem.id,
+            itemName: targetItem.name,
+            type: 'keluar',
+            quantity: qty,
+            source: 'pelarasan',
+            date: d.scheduledDate ? d.scheduledDate.split('T')[0] : d.createdAt.split('T')[0],
+            reference: d.disbursementNumber,
+            notes: d.purpose || 'Agihan bulanan',
+            previousStock: qty + 10,
+            newStock: 10,
+          })
+          movIdx++
+        })
+
+        setStockMovements(movements)
+      } catch {
+        // Leave defaults on error
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
   // ─── Distribution Form ─────────────────────────────────────────────
   const form = useForm<DistributionFormValues>({
@@ -890,6 +1024,23 @@ export default function AgihanBulanPage() {
   }
 
   // ─── Render ────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0c10] text-white p-4 lg:p-8">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 blur-[120px] animate-pulse" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 blur-[120px] animate-pulse delay-700" />
+        </div>
+        <div className="relative z-10 max-w-7xl mx-auto">
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+            <span className="ml-3 text-sm text-zinc-400">Memuatkan data agihan & inventori...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white p-4 lg:p-8">

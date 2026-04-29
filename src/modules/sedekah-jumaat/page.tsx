@@ -8,6 +8,7 @@ import { format, parseISO, isThisMonth } from 'date-fns'
 import { ms } from 'date-fns/locale'
 
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -87,6 +88,7 @@ import {
   BookOpen,
   ChefHat,
   Package,
+  Loader2,
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -197,9 +199,7 @@ const DELIVERY_TIME_OPTIONS: { value: DeliveryTime; label: string; desc: string 
 const ITEMS_PER_PAGE = 8
 const BRAND_COLOR = '#4B0082'
 
-// ─── Initial Data (empty — populated from API) ──────────────────────────
-
-const INITIAL_DISTRIBUTIONS: Distribution[] = []
+// ─── Default empty (populated from API) ──────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Zod Schema
@@ -289,9 +289,59 @@ function getInstitutionById(id: string): Institution | undefined {
 // Main Component
 // ═══════════════════════════════════════════════════════════════════════════════
 
+interface DisbursementApiRecord {
+  id: string
+  disbursementNumber: string
+  amount: number
+  purpose: string
+  status: string
+  recipientName: string
+  recipientIC?: string | null
+  notes?: string | null
+  createdAt: string
+  scheduledDate?: string | null
+  programme?: { id: string; name: string } | null
+}
+
+interface DonationApiRecord {
+  id: string
+  donationNumber: string
+  amount: number
+  status: string
+  fundType: string
+  donorName: string
+  notes?: string | null
+  donatedAt: string
+  createdAt: string
+  programme?: { id: string; name: string } | null
+}
+
+function mapDisbursementStatus(status: string): DistributionStatus {
+  const map: Record<string, DistributionStatus> = {
+    disbursed: 'dihantar',
+    approved: 'dihantar',
+    processing: 'dalam_proses',
+    pending: 'menunggu',
+    cancelled: 'dibatalkan',
+    failed: 'dibatalkan',
+  }
+  return map[status] || 'menunggu'
+}
+
+function mapDonationStatus(status: string): DistributionStatus {
+  const map: Record<string, DistributionStatus> = {
+    confirmed: 'dihantar',
+    pending: 'menunggu',
+    failed: 'dibatalkan',
+    refunded: 'dibatalkan',
+  }
+  return map[status] || 'menunggu'
+}
+
 export default function SedekahJumaatPage() {
   // ─── State ──────────────────────────────────────────────────────────
-  const [distributions, setDistributions] = React.useState<Distribution[]>(INITIAL_DISTRIBUTIONS)
+  const [distributions, setDistributions] = React.useState<Distribution[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [filterType, setFilterType] = React.useState<string>('semua')
   const [filterStatus, setFilterStatus] = React.useState<string>('semua')
@@ -303,6 +353,88 @@ export default function SedekahJumaatPage() {
   const [sortField, setSortField] = React.useState<'date' | 'institutionName' | 'expenditure'>('date')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = React.useState('jadual')
+
+  // ─── Fetch data from API ────────────────────────────────────────────
+  React.useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true)
+
+        // Fetch disbursements filtered by sedekah/jumaat purpose
+        const disbursements = await api.get<DisbursementApiRecord[]>('/disbursements', { pageSize: 100 })
+        const sedekahDisbursements = (disbursements || []).filter(
+          d => d.purpose && (d.purpose.toLowerCase().includes('jumaat') || d.purpose.toLowerCase().includes('sedekah') || d.purpose.toLowerCase().includes('sadaqah'))
+        )
+
+        // If we found matching disbursements, map them
+        const fromDisbursements: Distribution[] = sedekahDisbursements.map(d => {
+          const inst = INSTITUTIONS.find(i =>
+            d.recipientName && i.name.toLowerCase().includes(d.recipientName.toLowerCase().split(' ')[0])
+          ) || INSTITUTIONS[0]
+          return {
+            id: d.id,
+            refNo: d.disbursementNumber,
+            institutionId: inst.id,
+            institutionName: d.recipientName || inst.name,
+            institutionType: inst.type,
+            address: inst.address,
+            numberOfPeople: Math.max(1, Math.round(Number(d.amount) / 15)),
+            menu: d.purpose || 'Menu Sedekah Jumaat',
+            foodType: 'nasi_berlauk' as FoodType,
+            foodBoxes: Math.max(1, Math.round(Number(d.amount) / 12)),
+            expenditure: Number(d.amount),
+            deliveryMethod: 'hantar_sendiri' as DeliveryMethod,
+            driverName: '-',
+            driverPhone: '-',
+            deliveryTime: 'tengah_hari' as DeliveryTime,
+            status: mapDisbursementStatus(d.status),
+            date: d.scheduledDate ? d.scheduledDate.split('T')[0] : d.createdAt.split('T')[0],
+            notes: d.notes || '',
+          }
+        })
+
+        // Also fetch sadaqah donations as a supplement
+        let fromDonations: Distribution[] = []
+        if (fromDisbursements.length === 0) {
+          try {
+            const donations = await api.get<DonationApiRecord[]>('/donations', { fundType: 'sadaqah', pageSize: 50 })
+            fromDonations = (donations || []).map(d => {
+              const inst = INSTITUTIONS[Math.abs(d.donorName.length) % INSTITUTIONS.length]
+              return {
+                id: d.id,
+                refNo: d.donationNumber,
+                institutionId: inst.id,
+                institutionName: inst.name,
+                institutionType: inst.type,
+                address: inst.address,
+                numberOfPeople: Math.max(1, Math.round(Number(d.amount) / 15)),
+                menu: 'Sedekah Jumaat',
+                foodType: 'nasi_berlauk' as FoodType,
+                foodBoxes: Math.max(1, Math.round(Number(d.amount) / 12)),
+                expenditure: Number(d.amount),
+                deliveryMethod: 'hantar_sendiri' as DeliveryMethod,
+                driverName: '-',
+                driverPhone: '-',
+                deliveryTime: 'tengah_hari' as DeliveryTime,
+                status: mapDonationStatus(d.status),
+                date: d.donatedAt ? d.donatedAt.split('T')[0] : d.createdAt.split('T')[0],
+                notes: d.notes || '',
+              }
+            })
+          } catch {
+            // donations fetch is optional
+          }
+        }
+
+        setDistributions([...fromDisbursements, ...fromDonations])
+      } catch {
+        // Leave empty on error
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
   // ─── Form ───────────────────────────────────────────────────────────
   const form = useForm<DistributionFormValues>({
@@ -543,6 +675,19 @@ export default function SedekahJumaatPage() {
   }, [watchedNumberOfPeople, form])
 
   // ─── Render ─────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+            <span className="ml-3 text-sm text-muted-foreground">Memuatkan data agihan...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">

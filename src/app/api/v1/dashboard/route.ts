@@ -23,6 +23,12 @@ const getCachedDashboardData = unstable_cache(
     const currentMonth = getMonthWindow()
     const previousMonth = getMonthWindow(-1)
 
+    // Count recent (last 7 days) donations and this week's programmes
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const startOfWeek = new Date()
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
+    startOfWeek.setHours(0, 0, 0, 0)
+
     const [
       totalMembers,
       activeProgrammes,
@@ -31,6 +37,9 @@ const getCachedDashboardData = unstable_cache(
       complianceItems,
       totalCases,
       pendingCases,
+      recentDonationsCount,
+      pendingEkycCount,
+      thisWeekProgrammesCount,
       thisMonthDonations,
       previousMonthDonations,
       currentMonthMembers,
@@ -52,6 +61,9 @@ const getCachedDashboardData = unstable_cache(
       db.complianceChecklist.findMany(),
       db.case.count(),
       db.case.count({ where: { status: { in: ['draft', 'submitted', 'verifying', 'verified', 'scoring', 'scored', 'approved', 'disbursing'] } } }),
+      db.donation.count({ where: { status: 'pending', createdAt: { gte: sevenDaysAgo } } }),
+      db.eKYCVerification.count({ where: { status: 'pending' } }),
+      db.programme.count({ where: { status: 'active', startDate: { gte: startOfWeek } } }),
       db.donation.aggregate({
         _sum: { amount: true },
         where: {
@@ -118,6 +130,9 @@ const getCachedDashboardData = unstable_cache(
       complianceScore,
       totalCases,
       pendingCases,
+      recentDonationsCount,
+      pendingEkycCount,
+      thisWeekProgrammesCount,
       thisMonthDonations: Number(thisMonthDonations._sum.amount || 0),
       trendMembers: getTrendPercentage(currentMonthMembers, previousMonthMembers),
       trendProgrammes: getTrendPercentage(currentMonthProgrammes, previousMonthProgrammes),

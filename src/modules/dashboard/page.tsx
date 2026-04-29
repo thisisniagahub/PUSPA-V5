@@ -146,6 +146,24 @@ function SystemMetrics() {
 
 function AIStatusCard() {
   const setView = useAppStore((s) => s.setView)
+  const [aiStatus, setAiStatus] = useState<{ connected: boolean; status: string } | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    async function fetchStatus() {
+      try {
+        const data = await api.get<any>('/openclaw/status')
+        if (mounted) setAiStatus({ connected: data?.connected ?? false, status: data?.status ?? 'offline' })
+      } catch {
+        if (mounted) setAiStatus({ connected: false, status: 'offline' })
+      }
+    }
+    fetchStatus()
+    return () => { mounted = false }
+  }, [])
+
+  const isConnected = aiStatus?.connected ?? false
+
   return (
     <Card className="border border-white/10 shadow-2xl bg-gradient-to-br from-[#520071] to-[#101415] text-white overflow-hidden group cursor-pointer" onClick={() => setView('openclaw-terminal')}>
       <CardContent className="p-6 relative">
@@ -157,7 +175,10 @@ function AIStatusCard() {
             <Zap className="h-5 w-5 text-primary fill-primary" />
             <h3 className="font-bold text-lg text-primary">AI Ops Engine</h3>
           </div>
-          <p className="text-sm text-white/70 mb-4 max-w-[200px]">OpenClaw MCP Gateway is active. 12 agents online.</p>
+          <p className="text-sm text-white/70 mb-4 max-w-[200px]">
+            OpenClaw MCP Gateway is {isConnected ? 'connected' : 'offline'}.
+            {isConnected ? ' System operational.' : ' Configure gateway to enable.'}
+          </p>
           <div className="flex items-center gap-2 text-white text-xs font-bold">
             Enter Console <ChevronRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -182,6 +203,10 @@ interface DashboardStats {
   trendDonasi: number
   trendSukarelawan: number
   trendCompliance: number
+  kesMenunggu: number
+  donasiBaharu: number
+  ekycMenunggu: number
+  programMingguIni: number
 }
 
 const FUND_COLORS: Record<string, string> = {
@@ -293,7 +318,8 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState<DashboardStats>({
     jumlahAhliAsnaf: 0, programAktif: 0, jumlahDonasi: 0, sukarelawanAktif: 0, skorCompliance: 0,
-    trendAhli: 0, trendProgram: 0, trendDonasi: 0, trendSukarelawan: 0, trendCompliance: 0
+    trendAhli: 0, trendProgram: 0, trendDonasi: 0, trendSukarelawan: 0, trendCompliance: 0,
+    kesMenunggu: 0, donasiBaharu: 0, ekycMenunggu: 0, programMingguIni: 0,
   })
   const [monthlyData, setMonthlyData] = useState<any[]>([])
   const [memberData, setMemberData] = useState<any[]>([])
@@ -318,6 +344,10 @@ export default function DashboardPage() {
             trendDonasi: res.trendDonations ?? 0,
             trendSukarelawan: res.trendVolunteers ?? 0,
             trendCompliance: res.trendCompliance ?? 0,
+            kesMenunggu: res.pendingCases ?? 0,
+            donasiBaharu: res.recentDonationsCount ?? 0,
+            ekycMenunggu: res.pendingEkycCount ?? 0,
+            programMingguIni: res.thisWeekProgrammesCount ?? 0,
           });
           
           setMonthlyData(res.monthlyDonationTrend || []);
@@ -369,10 +399,10 @@ export default function DashboardPage() {
   )
 
   const flowingItems = [
-    { label: '3 Kes Menunggu', description: 'Permohonan bantuan perlu disemak', icon: Clock, color: '#d97706', onClick: () => setView('cases') },
-    { label: '5 Donasi Baharu', description: 'Sumbangan belum direkodkan', icon: DollarSign, color: '#059669', onClick: () => setView('donations') },
-    { label: '2 eKYC Pending', description: 'Pengesahan identiti menunggu', icon: ShieldCheck, color: '#2563eb', onClick: () => setView('ekyc') },
-    { label: '1 Program Minggu Ini', description: 'Program bantuan perlu dijalankan', icon: Calendar, color: '#7c3aed', onClick: () => setView('programmes') },
+    { label: `${stats.kesMenunggu} Kes Menunggu`, description: 'Permohonan bantuan perlu disemak', icon: Clock, color: '#d97706', onClick: () => setView('cases') },
+    { label: `${stats.donasiBaharu} Donasi Baharu`, description: 'Sumbangan belum direkodkan', icon: DollarSign, color: '#059669', onClick: () => setView('donations') },
+    { label: `${stats.ekycMenunggu} eKYC Pending`, description: 'Pengesahan identiti menunggu', icon: ShieldCheck, color: '#2563eb', onClick: () => setView('ekyc') },
+    { label: `${stats.programMingguIni} Program Minggu Ini`, description: 'Program bantuan perlu dijalankan', icon: Calendar, color: '#7c3aed', onClick: () => setView('programmes') },
   ]
 
   return (
@@ -433,7 +463,7 @@ export default function DashboardPage() {
               </p>
               <div className="mt-4 flex items-center gap-3">
                 <Badge className="bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-md px-3 py-1">
-                  v2.2.0 Enterprise Developer
+                  v{process.env.NEXT_PUBLIC_APP_VERSION || '0.2.0'} Enterprise
                 </Badge>
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="text-xs text-purple-200 font-medium tracking-wide">SISTEM AKTIF & TERJAMIN</span>
@@ -445,7 +475,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 sm:flex">
             {[
               { label: 'Skor Pematuhan', value: `${stats.skorCompliance}%`, icon: ShieldCheck, color: 'text-emerald-400' },
-              { label: 'Uptime Sistem', value: '100%', icon: Activity, color: 'text-sky-400' }
+              { label: 'Uptime Sistem', value: stats.skorCompliance >= 80 ? 'Aktif' : 'Semak', icon: Activity, color: 'text-sky-400' }
             ].map((m, i) => (
               <div key={i} className="flex flex-col rounded-2xl bg-white/5 p-4 border border-white/10 backdrop-blur-xl">
                 <div className="flex items-center gap-2 mb-1">

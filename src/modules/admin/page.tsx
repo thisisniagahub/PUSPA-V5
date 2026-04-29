@@ -24,7 +24,7 @@ import {
   EyeOff,
   CheckCircle2,
   AlertCircle,
-  User,
+  Loader2,
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -36,7 +36,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
@@ -53,6 +52,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import {
@@ -67,7 +67,50 @@ import {
 } from '@/components/ui/alert-dialog'
 
 // ─────────────────────────────────────────────
-// Types
+// Types — API Response shapes
+// ─────────────────────────────────────────────
+interface OrgProfileApiResponse {
+  id: string
+  legalName: string
+  tradeName: string | null
+  registrationType: string | null
+  registrationNumber: string | null
+  foundedDate: string | null
+  registeredAddress: string | null
+  operatingAddress: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  bankName: string | null
+  bankAccount: string | null
+  bankVerified: boolean
+  lhdnApprovalRef: string | null
+  lhdnApprovalExpiry: string | null
+  isTaxExempt: boolean
+  missionStatement: string | null
+  visionStatement: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+interface BoardMemberApiResponse {
+  id: string
+  name: string
+  title: string | null
+  role: string
+  appointmentDate: string | null
+  endDate: string | null
+  phone: string | null
+  email: string | null
+  photo: string | null
+  bio: string | null
+  isCurrent: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// ─────────────────────────────────────────────
+// Types — UI shapes (kept the same as original)
 // ─────────────────────────────────────────────
 interface OrgProfile {
   legalName: string
@@ -126,142 +169,29 @@ interface BankingInfo {
 }
 
 // ─────────────────────────────────────────────
-// Mock Data
+// Role mapping: API enum ↔ Malay labels
 // ─────────────────────────────────────────────
-const initialOrgProfile: OrgProfile = {
-  legalName: 'Pertubuhan Urus Peduli Asnaf',
-  tradeName: 'PUSPA',
-  registrationType: 'Persatuan',
-  rosRegistrationNo: 'PPM-006-14-14032020',
-  establishmentDate: '2020-03-14',
-  registeredAddress: 'No. 23, Jalan Hulu Klang 3, 54200 Kuala Lumpur',
-  operatingAddress: 'No. 23, Jalan Hulu Klang 3, 54200 Kuala Lumpur',
-  phone: '03-4107 8899',
-  email: 'info@puspa.org.my',
-  website: 'www.puspa.org.my',
-  mission:
-    'Membangunkan masyarakat asnaf yang berdaya tahan melalui program pendidikan, kebajikan dan pembangunan komuniti yang berteraskan nilai-nilai Islam.',
-  vision:
-    'Menjadi organisasi terulung dalam memperkasakan kehidupan asnaf di Malaysia menjelang 2030.',
+const API_ROLE_TO_LABEL: Record<string, string> = {
+  chairman: 'Pengerusi',
+  vice_chairman: 'Timbalan Pengerusi',
+  secretary: 'Setiausaha',
+  deputy_secretary: 'Timbalan Setiausaha',
+  treasurer: 'Bendahari',
+  committee_member: 'Ahli Jawatankuasa',
+  adviser: 'Penasihat',
+  trustee: 'Amanah',
+  other: 'Lain-lain',
 }
 
-const initialBoardMembers: BoardMember[] = [
-  {
-    id: 'bm-1',
-    name: 'Haji Ahmad bin Ismail',
-    title: 'Haji.',
-    role: 'Pengerusi',
-    appointmentDate: '2020-03-14',
-    endDate: '2023-03-14',
-    phone: '012-345 6789',
-    email: 'ahmad.ismail@puspa.org.my',
-    photoUrl: '',
-    bio: 'Berpengalaman lebih 20 tahun dalam sektor pembangunan komuniti dan kebajikan. Bekas pegawai kanan Kementerian Pembangunan Wanita, Keluarga dan Masyarakat.',
-    isCurrent: true,
-  },
-  {
-    id: 'bm-2',
-    name: 'Dr. Siti Aminah binti Abdul Rahman',
-    title: 'Dr.',
-    role: 'Penasihat',
-    appointmentDate: '2020-05-01',
-    endDate: '',
-    phone: '013-456 7890',
-    email: 'sitiaminah@puspa.org.my',
-    photoUrl: '',
-    bio: 'Pakar dalam bidang kewangan Islam dan pembangunan sosial. Pensyarah kanan di Universiti Malaya dalam bidang Pengajian Islam.',
-    isCurrent: true,
-  },
-  {
-    id: 'bm-3',
-    name: 'Ustaz Mohd Farid bin Hassan',
-    title: 'Ustaz.',
-    role: 'Timbalan Pengerusi',
-    appointmentDate: '2020-03-14',
-    endDate: '2023-03-14',
-    phone: '014-567 8901',
-    email: 'farid.hassan@puspa.org.my',
-    photoUrl: '',
-    bio: 'Graduan Universiti Al-Azhar, Kairo. Aktif dalam dakwah dan program kebajikan masyarakat.',
-    isCurrent: true,
-  },
-  {
-    id: 'bm-4',
-    name: 'Puan Noraini binti Mohamed',
-    title: 'Puan',
-    role: 'Bendahari',
-    appointmentDate: '2021-01-15',
-    endDate: '2024-01-15',
-    phone: '016-678 9012',
-    email: 'noraini@puspa.org.my',
-    photoUrl: '',
-    bio: 'Akauntan berdaftar dengan pengalaman 15 tahun dalam pengurusan kewangan NGO dan organisasi bukan untung.',
-    isCurrent: true,
-  },
-  {
-    id: 'bm-5',
-    name: 'Encik Muhammad Azril bin Iskandar',
-    title: 'Encik',
-    role: 'Setiausaha',
-    appointmentDate: '2021-01-15',
-    endDate: '2024-01-15',
-    phone: '017-789 0123',
-    email: 'azril@puspa.org.my',
-    photoUrl: '',
-    bio: 'Peguam bertauliah dengan minat mendalam dalam undang-undang persatuan dan kebajikan masyarakat.',
-    isCurrent: true,
-  },
-  {
-    id: 'bm-6',
-    name: 'Hajah Fatimah binti Yusof',
-    title: 'Hajah.',
-    role: 'Timbalan Setiausaha',
-    appointmentDate: '2022-06-01',
-    endDate: '2025-06-01',
-    phone: '018-890 1234',
-    email: 'fatimah.y@puspa.org.my',
-    photoUrl: '',
-    bio: 'Bekas guru sekolah menengah dengan pengalaman luas dalam pengurusan pendidikan dan aktiviti kebajikan komuniti.',
-    isCurrent: true,
-  },
-  {
-    id: 'bm-7',
-    name: 'Encik Zulkifli bin Abdul Aziz',
-    title: 'Encik',
-    role: 'Ahli Jawatankuasa',
-    appointmentDate: '2022-06-01',
-    endDate: '2025-06-01',
-    phone: '019-901 2345',
-    email: 'zulkifli@puspa.org.my',
-    photoUrl: '',
-    bio: 'Usahawan sosial dan penganjur komuniti. Aktif dalam program pembangunan usahawan asnaf.',
-    isCurrent: true,
-  },
-]
+const LABEL_TO_API_ROLE: Record<string, string> = Object.fromEntries(
+  Object.entries(API_ROLE_TO_LABEL).map(([k, v]) => [v, k])
+)
 
-const initialBankingInfo: BankingInfo = {
-  bankName: 'Bank Islam Malaysia Berhad',
-  accountNumber: '076012345678',
-  accountHolder: 'Pertubuhan Urus Peduli Asnaf (PUSPA)',
-  verified: true,
-  lhdnReference: 'LHDN.01/36/PUSPA/2024',
-  lhdnExpiryDate: '2025-12-31',
-  taxExempt: true,
-}
+const ROLE_LABELS: Record<string, string> = API_ROLE_TO_LABEL
 
 // ─────────────────────────────────────────────
-// Helper functions
+// Helper constants
 // ─────────────────────────────────────────────
-const ROLE_LABELS: Record<string, string> = {
-  Pengerusi: 'Pengerusi',
-  'Timbalan Pengerusi': 'Timbalan Pengerusi',
-  Bendahari: 'Bendahari',
-  Setiausaha: 'Setiausaha',
-  'Timbalan Setiausaha': 'Timbalan Setiausaha',
-  Penasihat: 'Penasihat',
-  'Ahli Jawatankuasa': 'Ahli Jawatankuasa',
-}
-
 const PARTNER_TYPE_LABELS: Record<string, string> = {
   corporate: 'Korporat',
   foundation: 'Yayasan',
@@ -292,6 +222,59 @@ const VERIFICATION_CONFIG: Record<
   },
 }
 
+// ─────────────────────────────────────────────
+// Mapping functions: API → UI
+// ─────────────────────────────────────────────
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ''
+    return d.toISOString().split('T')[0]
+  } catch {
+    return ''
+  }
+}
+
+const mapOrgFromApi = (api: OrgProfileApiResponse): OrgProfile => ({
+  legalName: api.legalName || '',
+  tradeName: api.tradeName || '',
+  registrationType: api.registrationType || '',
+  rosRegistrationNo: api.registrationNumber || '',
+  establishmentDate: formatDate(api.foundedDate),
+  registeredAddress: api.registeredAddress || '',
+  operatingAddress: api.operatingAddress || '',
+  phone: api.phone || '',
+  email: api.email || '',
+  website: api.website || '',
+  mission: api.missionStatement || '',
+  vision: api.visionStatement || '',
+})
+
+const mapBankingFromApi = (api: OrgProfileApiResponse): BankingInfo => ({
+  bankName: api.bankName || '',
+  accountNumber: api.bankAccount || '',
+  accountHolder: api.legalName ? `${api.legalName}${api.tradeName ? ` (${api.tradeName})` : ''}` : '',
+  verified: api.bankVerified,
+  lhdnReference: api.lhdnApprovalRef || '',
+  lhdnExpiryDate: formatDate(api.lhdnApprovalExpiry),
+  taxExempt: api.isTaxExempt,
+})
+
+const mapBoardMemberFromApi = (api: BoardMemberApiResponse): BoardMember => ({
+  id: api.id,
+  name: api.name,
+  title: api.title || '',
+  role: API_ROLE_TO_LABEL[api.role] || api.role,
+  appointmentDate: formatDate(api.appointmentDate),
+  endDate: formatDate(api.endDate),
+  phone: api.phone || '',
+  email: api.email || '',
+  photoUrl: api.photo || '',
+  bio: api.bio || '',
+  isCurrent: api.isCurrent,
+})
+
 const mapPartnerFromApi = (partner: PartnerApiRecord): Partner => ({
   id: partner.id,
   name: partner.name,
@@ -317,15 +300,63 @@ function maskAccountNumber(accNo: string): string {
 }
 
 // ─────────────────────────────────────────────
+// Empty defaults (no mock data)
+// ─────────────────────────────────────────────
+const emptyOrgProfile: OrgProfile = {
+  legalName: '',
+  tradeName: '',
+  registrationType: '',
+  rosRegistrationNo: '',
+  establishmentDate: '',
+  registeredAddress: '',
+  operatingAddress: '',
+  phone: '',
+  email: '',
+  website: '',
+  mission: '',
+  vision: '',
+}
+
+const emptyBankingInfo: BankingInfo = {
+  bankName: '',
+  accountNumber: '',
+  accountHolder: '',
+  verified: false,
+  lhdnReference: '',
+  lhdnExpiryDate: '',
+  taxExempt: false,
+}
+
+const emptyBoardForm: BoardMember = {
+  id: '',
+  name: '',
+  title: '',
+  role: '',
+  appointmentDate: '',
+  endDate: '',
+  phone: '',
+  email: '',
+  photoUrl: '',
+  bio: '',
+  isCurrent: true,
+}
+
+// ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
 export default function AdminPage() {
   // ── State ──
-  const [orgProfile, setOrgProfile] = useState<OrgProfile>(initialOrgProfile)
-  const [boardMembers, setBoardMembers] = useState<BoardMember[]>(initialBoardMembers)
+  const [orgProfile, setOrgProfile] = useState<OrgProfile>(emptyOrgProfile)
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
+  const [bankingInfo, setBankingInfo] = useState<BankingInfo>(emptyBankingInfo)
+
+  // Loading states
+  const [orgLoading, setOrgLoading] = useState(true)
+  const [boardLoading, setBoardLoading] = useState(true)
   const [partnersLoading, setPartnersLoading] = useState(true)
-  const [bankingInfo, setBankingInfo] = useState<BankingInfo>(initialBankingInfo)
+  const [bankingLoading, setBankingLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   // Dialog states
   const [boardDialogOpen, setBoardDialogOpen] = useState(false)
@@ -336,19 +367,7 @@ export default function AdminPage() {
   const [deletingTarget, setDeletingTarget] = useState<{ type: 'board' | 'partner'; id: string } | null>(null)
 
   // Form states
-  const [boardForm, setBoardForm] = useState<BoardMember>({
-    id: '',
-    name: '',
-    title: '',
-    role: '',
-    appointmentDate: '',
-    endDate: '',
-    phone: '',
-    email: '',
-    photoUrl: '',
-    bio: '',
-    isCurrent: true,
-  })
+  const [boardForm, setBoardForm] = useState<BoardMember>({ ...emptyBoardForm })
 
   const [partnerForm, setPartnerForm] = useState<Partner>({
     id: '',
@@ -362,10 +381,38 @@ export default function AdminPage() {
   const [showAccountNumber, setShowAccountNumber] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
 
-  // ── Handlers ──
+  // ── Data Fetching ──
   const showSaveSuccess = useCallback((section: string) => {
     setSaveSuccess(section)
     setTimeout(() => setSaveSuccess(null), 2000)
+  }, [])
+
+  const fetchOrgProfile = useCallback(async () => {
+    try {
+      setOrgLoading(true)
+      setBankingLoading(true)
+      const data = await api.get<OrgProfileApiResponse>('/organization')
+      setOrgProfile(mapOrgFromApi(data))
+      setBankingInfo(mapBankingFromApi(data))
+    } catch {
+      toast.error('Gagal memuatkan profil organisasi')
+    } finally {
+      setOrgLoading(false)
+      setBankingLoading(false)
+    }
+  }, [])
+
+  const fetchBoardMembers = useCallback(async () => {
+    try {
+      setBoardLoading(true)
+      const data = await api.get<BoardMemberApiResponse[]>('/board-members')
+      setBoardMembers(data.map(mapBoardMemberFromApi))
+    } catch {
+      toast.error('Gagal memuatkan ahli lembaga')
+      setBoardMembers([])
+    } finally {
+      setBoardLoading(false)
+    }
   }, [])
 
   const fetchPartners = useCallback(async () => {
@@ -382,16 +429,42 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
+    fetchOrgProfile()
+    fetchBoardMembers()
     fetchPartners()
-  }, [fetchPartners])
+  }, [fetchOrgProfile, fetchBoardMembers, fetchPartners])
+
+  // ── Handlers ──
 
   // Tab 1: Organization Profile
   const handleOrgChange = (field: keyof OrgProfile, value: string) => {
     setOrgProfile((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSaveOrg = () => {
-    showSaveSuccess('org')
+  const handleSaveOrg = async () => {
+    try {
+      setSaving(true)
+      const apiRole = LABEL_TO_API_ROLE[orgProfile.registrationType] || orgProfile.registrationType
+      await api.put<OrgProfileApiResponse>('/organization', {
+        legalName: orgProfile.legalName,
+        tradeName: orgProfile.tradeName,
+        registrationType: apiRole === orgProfile.registrationType ? orgProfile.registrationType : apiRole,
+        registrationNumber: orgProfile.rosRegistrationNo,
+        foundedDate: orgProfile.establishmentDate || null,
+        registeredAddress: orgProfile.registeredAddress,
+        operatingAddress: orgProfile.operatingAddress,
+        phone: orgProfile.phone,
+        email: orgProfile.email,
+        website: orgProfile.website,
+        missionStatement: orgProfile.mission,
+        visionStatement: orgProfile.vision,
+      })
+      showSaveSuccess('org')
+    } catch {
+      toast.error('Gagal menyimpan profil organisasi')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Tab 2: Board Members
@@ -401,35 +474,51 @@ export default function AdminPage() {
       setBoardForm({ ...member })
     } else {
       setEditingBoardMember(null)
-      setBoardForm({
-        id: `bm-${Date.now()}`,
-        name: '',
-        title: '',
-        role: '',
-        appointmentDate: '',
-        endDate: '',
-        phone: '',
-        email: '',
-        photoUrl: '',
-        bio: '',
-        isCurrent: true,
-      })
+      setBoardForm({ ...emptyBoardForm, id: '' })
     }
     setBoardDialogOpen(true)
   }
 
-  const handleSaveBoardMember = () => {
+  const handleSaveBoardMember = async () => {
     if (!boardForm.name || !boardForm.role) return
-    if (editingBoardMember) {
-      setBoardMembers((prev) =>
-        prev.map((m) => (m.id === editingBoardMember.id ? { ...boardForm } : m))
-      )
-    } else {
-      setBoardMembers((prev) => [...prev, { ...boardForm }])
+
+    try {
+      setSaving(true)
+      const apiRole = LABEL_TO_API_ROLE[boardForm.role] || boardForm.role
+      const payload = {
+        name: boardForm.name,
+        title: boardForm.title || undefined,
+        role: apiRole,
+        appointmentDate: boardForm.appointmentDate || undefined,
+        endDate: boardForm.endDate || undefined,
+        phone: boardForm.phone || undefined,
+        email: boardForm.email || undefined,
+        photo: boardForm.photoUrl || undefined,
+        bio: boardForm.bio || undefined,
+        isCurrent: boardForm.isCurrent,
+      }
+
+      if (editingBoardMember) {
+        const updated = await api.put<BoardMemberApiResponse>('/board-members', {
+          id: editingBoardMember.id,
+          ...payload,
+        })
+        setBoardMembers((prev) =>
+          prev.map((m) => (m.id === editingBoardMember.id ? mapBoardMemberFromApi(updated) : m))
+        )
+      } else {
+        const created = await api.post<BoardMemberApiResponse>('/board-members', payload)
+        setBoardMembers((prev) => [mapBoardMemberFromApi(created), ...prev])
+      }
+
+      setBoardDialogOpen(false)
+      setEditingBoardMember(null)
+      showSaveSuccess('board')
+    } catch {
+      toast.error(editingBoardMember ? 'Gagal mengemas kini ahli lembaga' : 'Gagal menambah ahli lembaga')
+    } finally {
+      setSaving(false)
     }
-    setBoardDialogOpen(false)
-    setEditingBoardMember(null)
-    showSaveSuccess('board')
   }
 
   const handleDeleteBoardMember = (id: string) => {
@@ -445,7 +534,7 @@ export default function AdminPage() {
     } else {
       setEditingPartner(null)
       setPartnerForm({
-        id: `p-${Date.now()}`,
+        id: '',
         name: '',
         type: '',
         relationship: '',
@@ -460,6 +549,7 @@ export default function AdminPage() {
     if (!partnerForm.name || !partnerForm.type) return
 
     try {
+      setSaving(true)
       const payload = {
         name: partnerForm.name,
         type: partnerForm.type,
@@ -485,6 +575,8 @@ export default function AdminPage() {
       showSaveSuccess('partner')
     } catch {
       toast.error(editingPartner ? 'Gagal mengemas kini rakan kongsi' : 'Gagal menambah rakan kongsi')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -493,10 +585,36 @@ export default function AdminPage() {
     setDeleteDialogOpen(true)
   }
 
+  // Banking tab save
+  const handleSaveBanking = async () => {
+    try {
+      setSaving(true)
+      await api.put<OrgProfileApiResponse>('/organization', {
+        bankName: bankingInfo.bankName,
+        bankAccount: bankingInfo.accountNumber,
+        bankVerified: bankingInfo.verified,
+        lhdnApprovalRef: bankingInfo.lhdnReference,
+        lhdnApprovalExpiry: bankingInfo.lhdnExpiryDate || null,
+        isTaxExempt: bankingInfo.taxExempt,
+      })
+      showSaveSuccess('banking')
+    } catch {
+      toast.error('Gagal menyimpan maklumat perbankan')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const confirmDelete = async () => {
     if (!deletingTarget) return
     if (deletingTarget.type === 'board') {
-      setBoardMembers((prev) => prev.filter((m) => m.id !== deletingTarget.id))
+      try {
+        await api.delete('/board-members', { id: deletingTarget.id })
+        setBoardMembers((prev) => prev.filter((m) => m.id !== deletingTarget.id))
+      } catch {
+        toast.error('Gagal memadam ahli lembaga')
+        return
+      }
     } else {
       try {
         await api.delete('/partners', { id: deletingTarget.id })
@@ -521,6 +639,7 @@ export default function AdminPage() {
     org: 'Profil organisasi berjaya disimpan.',
     board: 'Maklumat ahli lembaga berjaya dikemaskini.',
     partner: 'Maklumat rakan kongsi berjaya dikemaskini.',
+    banking: 'Maklumat perbankan berjaya disimpan.',
     delete: 'Rekod berjaya dipadam.',
   }
 
@@ -608,208 +727,239 @@ export default function AdminPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Row 1: Legal Name & Trade Name */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="legalName" className="text-sm font-medium">
-                      Nama Sah <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="legalName"
-                      value={orgProfile.legalName}
-                      onChange={(e) => handleOrgChange('legalName', e.target.value)}
-                      placeholder="Nama sah pertubuhan"
-                    />
+                {orgLoading ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-10 w-full" /></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-full" /></div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-full" /></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-20 w-full" /></div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-20 w-full" /></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      <div className="space-y-2"><Skeleton className="h-4 w-20" /><Skeleton className="h-10 w-full" /></div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-10 w-full" /></div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-20" /><Skeleton className="h-10 w-full" /></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-24 w-full" /></div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-24 w-full" /></div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tradeName" className="text-sm font-medium">
-                      Nama Dagangan
-                    </Label>
-                    <Input
-                      id="tradeName"
-                      value={orgProfile.tradeName}
-                      onChange={(e) => handleOrgChange('tradeName', e.target.value)}
-                      placeholder="Nama dagangan / singkatan"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: Registration Type & No */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="regType" className="text-sm font-medium">
-                      Jenis Pendaftaran
-                    </Label>
-                    <Select
-                      value={orgProfile.registrationType}
-                      onValueChange={(v) => handleOrgChange('registrationType', v)}
-                    >
-                      <SelectTrigger id="regType">
-                        <SelectValue placeholder="Pilih jenis pendaftaran" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Persatuan">Persatuan</SelectItem>
-                        <SelectItem value="Syarikat">Syarikat</SelectItem>
-                        <SelectItem value="Yayasan">Yayasan</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="rosNo" className="text-sm font-medium">
-                      No. Pendaftaran ROS
-                    </Label>
-                    <Input
-                      id="rosNo"
-                      value={orgProfile.rosRegistrationNo}
-                      onChange={(e) => handleOrgChange('rosRegistrationNo', e.target.value)}
-                      placeholder="cth. PPM-XXX-XX-XXXXXXXX"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 3: Establishment Date */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="estDate" className="text-sm font-medium">
-                      Tarikh Penubuhan
-                    </Label>
-                    <Input
-                      id="estDate"
-                      type="date"
-                      value={orgProfile.establishmentDate}
-                      onChange={(e) => handleOrgChange('establishmentDate', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Row 4: Addresses */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="regAddress" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                        Alamat Berdaftar
+                ) : (
+                  <>
+                    {/* Row 1: Legal Name & Trade Name */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="legalName" className="text-sm font-medium">
+                          Nama Sah <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="legalName"
+                          value={orgProfile.legalName}
+                          onChange={(e) => handleOrgChange('legalName', e.target.value)}
+                          placeholder="Nama sah pertubuhan"
+                        />
                       </div>
-                    </Label>
-                    <Textarea
-                      id="regAddress"
-                      value={orgProfile.registeredAddress}
-                      onChange={(e) => handleOrgChange('registeredAddress', e.target.value)}
-                      placeholder="Alamat penuh berdaftar"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="opAddress" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                        Alamat Operasi
+                      <div className="space-y-2">
+                        <Label htmlFor="tradeName" className="text-sm font-medium">
+                          Nama Dagangan
+                        </Label>
+                        <Input
+                          id="tradeName"
+                          value={orgProfile.tradeName}
+                          onChange={(e) => handleOrgChange('tradeName', e.target.value)}
+                          placeholder="Nama dagangan / singkatan"
+                        />
                       </div>
-                    </Label>
-                    <Textarea
-                      id="opAddress"
-                      value={orgProfile.operatingAddress}
-                      onChange={(e) => handleOrgChange('operatingAddress', e.target.value)}
-                      placeholder="Alamat operasi (jika berbeza)"
-                      rows={3}
-                    />
-                  </div>
-                </div>
+                    </div>
 
-                <Separator />
+                    {/* Row 2: Registration Type & No */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="regType" className="text-sm font-medium">
+                          Jenis Pendaftaran
+                        </Label>
+                        <Select
+                          value={orgProfile.registrationType}
+                          onValueChange={(v) => handleOrgChange('registrationType', v)}
+                        >
+                          <SelectTrigger id="regType">
+                            <SelectValue placeholder="Pilih jenis pendaftaran" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Persatuan">Persatuan</SelectItem>
+                            <SelectItem value="Syarikat">Syarikat</SelectItem>
+                            <SelectItem value="Yayasan">Yayasan</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="rosNo" className="text-sm font-medium">
+                          No. Pendaftaran ROS
+                        </Label>
+                        <Input
+                          id="rosNo"
+                          value={orgProfile.rosRegistrationNo}
+                          onChange={(e) => handleOrgChange('rosRegistrationNo', e.target.value)}
+                          placeholder="cth. PPM-XXX-XX-XXXXXXXX"
+                        />
+                      </div>
+                    </div>
 
-                {/* Row 5: Contact */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-slate-400" />
-                        Telefon
+                    {/* Row 3: Establishment Date */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="estDate" className="text-sm font-medium">
+                          Tarikh Penubuhan
+                        </Label>
+                        <Input
+                          id="estDate"
+                          type="date"
+                          value={orgProfile.establishmentDate}
+                          onChange={(e) => handleOrgChange('establishmentDate', e.target.value)}
+                        />
                       </div>
-                    </Label>
-                    <Input
-                      id="phone"
-                      value={orgProfile.phone}
-                      onChange={(e) => handleOrgChange('phone', e.target.value)}
-                      placeholder="cth. 03-XXXX XXXX"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-3.5 w-3.5 text-slate-400" />
-                        Emel
-                      </div>
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={orgProfile.email}
-                      onChange={(e) => handleOrgChange('email', e.target.value)}
-                      placeholder="emel@contoh.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-3.5 w-3.5 text-slate-400" />
-                        Laman Web
-                      </div>
-                    </Label>
-                    <Input
-                      id="website"
-                      value={orgProfile.website}
-                      onChange={(e) => handleOrgChange('website', e.target.value)}
-                      placeholder="www.contoh.com"
-                    />
-                  </div>
-                </div>
+                    </div>
 
-                <Separator />
+                    <Separator />
 
-                {/* Row 6: Mission & Vision */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="mission" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Star className="h-3.5 w-3.5 text-slate-400" />
-                        Penyata Misi
+                    {/* Row 4: Addresses */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="regAddress" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                            Alamat Berdaftar
+                          </div>
+                        </Label>
+                        <Textarea
+                          id="regAddress"
+                          value={orgProfile.registeredAddress}
+                          onChange={(e) => handleOrgChange('registeredAddress', e.target.value)}
+                          placeholder="Alamat penuh berdaftar"
+                          rows={3}
+                        />
                       </div>
-                    </Label>
-                    <Textarea
-                      id="mission"
-                      value={orgProfile.mission}
-                      onChange={(e) => handleOrgChange('mission', e.target.value)}
-                      placeholder="Nyatakan misi organisasi"
-                      rows={4}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="vision" className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Eye className="h-3.5 w-3.5 text-slate-400" />
-                        Penyata Visi
+                      <div className="space-y-2">
+                        <Label htmlFor="opAddress" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                            Alamat Operasi
+                          </div>
+                        </Label>
+                        <Textarea
+                          id="opAddress"
+                          value={orgProfile.operatingAddress}
+                          onChange={(e) => handleOrgChange('operatingAddress', e.target.value)}
+                          placeholder="Alamat operasi (jika berbeza)"
+                          rows={3}
+                        />
                       </div>
-                    </Label>
-                    <Textarea
-                      id="vision"
-                      value={orgProfile.vision}
-                      onChange={(e) => handleOrgChange('vision', e.target.value)}
-                      placeholder="Nyatakan visi organisasi"
-                      rows={4}
-                    />
-                  </div>
-                </div>
+                    </div>
 
-                {/* Save Button */}
-                <div className="flex justify-end pt-2">
-                  <Button onClick={handleSaveOrg} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-                    <Save className="h-4 w-4" />
-                    Simpan Profil
-                  </Button>
-                </div>
+                    <Separator />
+
+                    {/* Row 5: Contact */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-3.5 w-3.5 text-slate-400" />
+                            Telefon
+                          </div>
+                        </Label>
+                        <Input
+                          id="phone"
+                          value={orgProfile.phone}
+                          onChange={(e) => handleOrgChange('phone', e.target.value)}
+                          placeholder="cth. 03-XXXX XXXX"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5 text-slate-400" />
+                            Emel
+                          </div>
+                        </Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={orgProfile.email}
+                          onChange={(e) => handleOrgChange('email', e.target.value)}
+                          placeholder="emel@contoh.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="website" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <Globe className="h-3.5 w-3.5 text-slate-400" />
+                            Laman Web
+                          </div>
+                        </Label>
+                        <Input
+                          id="website"
+                          value={orgProfile.website}
+                          onChange={(e) => handleOrgChange('website', e.target.value)}
+                          placeholder="www.contoh.com"
+                        />
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Row 6: Mission & Vision */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="mission" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <Star className="h-3.5 w-3.5 text-slate-400" />
+                            Penyata Misi
+                          </div>
+                        </Label>
+                        <Textarea
+                          id="mission"
+                          value={orgProfile.mission}
+                          onChange={(e) => handleOrgChange('mission', e.target.value)}
+                          placeholder="Nyatakan misi organisasi"
+                          rows={4}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vision" className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <Eye className="h-3.5 w-3.5 text-slate-400" />
+                            Penyata Visi
+                          </div>
+                        </Label>
+                        <Textarea
+                          id="vision"
+                          value={orgProfile.vision}
+                          onChange={(e) => handleOrgChange('vision', e.target.value)}
+                          placeholder="Nyatakan visi organisasi"
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-2">
+                      <Button onClick={handleSaveOrg} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Simpan Profil
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -824,7 +974,7 @@ export default function AdminPage() {
                   Ahli Lembaga PUSPA
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {boardMembers.filter((m) => m.isCurrent).length} ahli aktif
+                  {boardLoading ? 'Memuatkan...' : `${boardMembers.filter((m) => m.isCurrent).length} ahli aktif`}
                 </p>
               </div>
               <Button
@@ -836,161 +986,196 @@ export default function AdminPage() {
               </Button>
             </div>
 
-            {/* Featured Members (Pengerusi & Penasihat) */}
-            {featuredMembers.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {featuredMembers.map((member) => (
-                  <Card
-                    key={member.id}
-                    className="shadow-sm border-slate-200/80 dark:border-slate-700/80 overflow-hidden group"
-                  >
-                    <div className="h-2 bg-gradient-to-r from-emerald-500 to-teal-500" />
-                    <CardContent className="p-6">
-                      <div className="flex flex-col sm:flex-row gap-5">
-                        <Avatar className="h-24 w-24 shadow-md border-2 border-emerald-100 dark:border-emerald-900/50 shrink-0 mx-auto sm:mx-0">
-                          <AvatarImage src={member.photoUrl || undefined} alt={member.name} />
-                          <AvatarFallback className="text-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            {getInitials(member.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 text-center sm:text-left">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">
-                            <div>
-                              <Badge
-                                variant="outline"
-                                className="text-xs font-medium border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300 mb-1"
-                              >
-                                {member.role}
-                              </Badge>
-                              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                {member.title} {member.name}
-                              </h3>
-                            </div>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => openBoardDialog(member)}
-                              >
-                                <Pencil className="h-4 w-4 text-slate-400" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 hover:text-red-600"
-                                onClick={() => handleDeleteBoardMember(member.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-slate-400" />
-                              </Button>
-                            </div>
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
-                            {member.bio}
-                          </p>
-                          <div className="flex flex-wrap gap-3 mt-3 text-xs text-slate-500 dark:text-slate-400 justify-center sm:justify-start">
-                            {member.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {member.phone}
-                              </span>
-                            )}
-                            {member.email && (
-                              <span className="flex items-center gap-1">
-                                <Mail className="h-3 w-3" />
-                                {member.email}
-                              </span>
-                            )}
-                          </div>
+            {boardLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Card key={i} className="shadow-sm border-slate-200/80 dark:border-slate-700/80">
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Skeleton className="h-12 w-12 rounded-full" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
                         </div>
                       </div>
+                      <Skeleton className="h-3 w-full mb-2" />
+                      <Skeleton className="h-3 w-2/3" />
                     </CardContent>
                   </Card>
                 ))}
               </div>
-            )}
-
-            {/* Other Members Grid */}
-            {otherMembers.length > 0 && (
+            ) : (
               <>
-                <h3 className="text-md font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                  <Separator className="flex-1" />
-                  <span className="px-3">Ahli Jawatankuasa Lain</span>
-                  <Separator className="flex-1" />
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {otherMembers.map((member) => (
-                    <Card
-                      key={member.id}
-                      className="shadow-sm border-slate-200/80 dark:border-slate-700/80 group hover:shadow-md transition-shadow"
-                    >
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-12 w-12 border border-slate-100 dark:border-slate-700">
+                {/* Featured Members (Pengerusi & Penasihat) */}
+                {featuredMembers.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {featuredMembers.map((member) => (
+                      <Card
+                        key={member.id}
+                        className="shadow-sm border-slate-200/80 dark:border-slate-700/80 overflow-hidden group"
+                      >
+                        <div className="h-2 bg-gradient-to-r from-emerald-500 to-teal-500" />
+                        <CardContent className="p-6">
+                          <div className="flex flex-col sm:flex-row gap-5">
+                            <Avatar className="h-24 w-24 shadow-md border-2 border-emerald-100 dark:border-emerald-900/50 shrink-0 mx-auto sm:mx-0">
                               <AvatarImage src={member.photoUrl || undefined} alt={member.name} />
-                              <AvatarFallback className="text-sm bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                              <AvatarFallback className="text-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                                 {getInitials(member.name)}
                               </AvatarFallback>
                             </Avatar>
-                            <div>
-                              <h4 className="font-medium text-sm text-slate-900 dark:text-white leading-tight">
-                                {member.title} {member.name}
-                              </h4>
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] font-medium mt-0.5 border-slate-200 text-slate-500 dark:border-slate-600 dark:text-slate-400"
-                              >
-                                {member.role}
-                              </Badge>
+                            <div className="flex-1 text-center sm:text-left">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">
+                                <div>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs font-medium border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300 mb-1"
+                                  >
+                                    {member.role}
+                                  </Badge>
+                                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                                    {member.title} {member.name}
+                                  </h3>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => openBoardDialog(member)}
+                                  >
+                                    <Pencil className="h-4 w-4 text-slate-400" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:text-red-600"
+                                    onClick={() => handleDeleteBoardMember(member.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-slate-400" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                                {member.bio}
+                              </p>
+                              <div className="flex flex-wrap gap-3 mt-3 text-xs text-slate-500 dark:text-slate-400 justify-center sm:justify-start">
+                                {member.phone && (
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3" />
+                                    {member.phone}
+                                  </span>
+                                )}
+                                {member.email && (
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="h-3 w-3" />
+                                    {member.email}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => openBoardDialog(member)}
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-slate-400" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 hover:text-red-600"
-                              onClick={() => handleDeleteBoardMember(member.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-slate-400" />
-                            </Button>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
-                          {member.bio}
-                        </p>
-                        <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
-                          {member.phone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {member.phone}
-                            </span>
-                          )}
-                          {member.email && (
-                            <span className="flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {member.email}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 mt-3">
-                          <Calendar className="h-3 w-3 text-slate-400" />
-                          <span className="text-[11px] text-slate-400">
-                            Dilantik: {member.appointmentDate || '—'}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Other Members Grid */}
+                {otherMembers.length > 0 && (
+                  <>
+                    <h3 className="text-md font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Separator className="flex-1" />
+                      <span className="px-3">Ahli Jawatankuasa Lain</span>
+                      <Separator className="flex-1" />
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {otherMembers.map((member) => (
+                        <Card
+                          key={member.id}
+                          className="shadow-sm border-slate-200/80 dark:border-slate-700/80 group hover:shadow-md transition-shadow"
+                        >
+                          <CardContent className="p-5">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-12 w-12 border border-slate-100 dark:border-slate-700">
+                                  <AvatarImage src={member.photoUrl || undefined} alt={member.name} />
+                                  <AvatarFallback className="text-sm bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                    {getInitials(member.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <h4 className="font-medium text-sm text-slate-900 dark:text-white leading-tight">
+                                    {member.title} {member.name}
+                                  </h4>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] font-medium mt-0.5 border-slate-200 text-slate-500 dark:border-slate-600 dark:text-slate-400"
+                                  >
+                                    {member.role}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => openBoardDialog(member)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5 text-slate-400" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 hover:text-red-600"
+                                  onClick={() => handleDeleteBoardMember(member.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-slate-400" />
+                                </Button>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
+                              {member.bio}
+                            </p>
+                            <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
+                              {member.phone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {member.phone}
+                                </span>
+                              )}
+                              {member.email && (
+                                <span className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  {member.email}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 mt-3">
+                              <Calendar className="h-3 w-3 text-slate-400" />
+                              <span className="text-[11px] text-slate-400">
+                                Dilantik: {member.appointmentDate || '—'}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Empty state */}
+                {boardMembers.length === 0 && (
+                  <Card className="shadow-sm border-slate-200/80 dark:border-slate-700/80">
+                    <CardContent className="p-8 text-center">
+                      <Users className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                      <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Tiada ahli lembaga</h3>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        Klik &quot;Tambah Ahli&quot; untuk menambah ahli lembaga baharu.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </>
             )}
 
@@ -1058,7 +1243,7 @@ export default function AdminPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                          <SelectItem key={key} value={key}>
+                          <SelectItem key={key} value={label}>
                             {label}
                           </SelectItem>
                         ))}
@@ -1159,10 +1344,10 @@ export default function AdminPage() {
                   </Button>
                   <Button
                     onClick={handleSaveBoardMember}
-                    disabled={!boardForm.name || !boardForm.role}
+                    disabled={!boardForm.name || !boardForm.role || saving}
                     className="gap-2 bg-emerald-600 hover:bg-emerald-700"
                   >
-                    <Save className="h-4 w-4" />
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     {editingBoardMember ? 'Kemaskini' : 'Simpan'}
                   </Button>
                 </DialogFooter>
@@ -1192,101 +1377,136 @@ export default function AdminPage() {
               </Button>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {Object.entries(PARTNER_TYPE_LABELS).map(([key, label]) => {
-                const count = partners.filter((p) => p.type === key).length
-                return (
-                  <Card
-                    key={key}
-                    className="shadow-sm border-slate-200/80 dark:border-slate-700/80 py-3"
-                  >
-                    <CardContent className="p-3 text-center">
-                      <p className="text-2xl font-bold text-slate-900 dark:text-white">{count}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
+            {partnersLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i} className="shadow-sm border-slate-200/80 dark:border-slate-700/80">
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Skeleton className="h-10 w-10 rounded-lg" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-3 w-full mb-2" />
+                      <Skeleton className="h-5 w-24" />
                     </CardContent>
                   </Card>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {Object.entries(PARTNER_TYPE_LABELS).map(([key, label]) => {
+                    const count = partners.filter((p) => p.type === key).length
+                    return (
+                      <Card
+                        key={key}
+                        className="shadow-sm border-slate-200/80 dark:border-slate-700/80 py-3"
+                      >
+                        <CardContent className="p-3 text-center">
+                          <p className="text-2xl font-bold text-slate-900 dark:text-white">{count}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
 
-            {/* Partner Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {partners.map((partner) => {
-                const vConfig = VERIFICATION_CONFIG[partner.verificationLevel]
-                const typeIcon =
-                  partner.type === 'masjid' ? '🕌' :
-                  partner.type === 'kerajaan' ? '🏛️' :
-                  partner.type === 'yayasan' ? '💙' :
-                  partner.type === 'korporat' ? '🏢' :
-                  partner.type === 'ngo' ? '🤝' : '👤'
+                {/* Partner Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {partners.map((partner) => {
+                    const vConfig = VERIFICATION_CONFIG[partner.verificationLevel]
+                    const typeIcon =
+                      partner.type === 'masjid' ? '🕌' :
+                      partner.type === 'kerajaan' ? '🏛️' :
+                      partner.type === 'yayasan' ? '💙' :
+                      partner.type === 'korporat' ? '🏢' :
+                      partner.type === 'ngo' ? '🤝' : '👤'
 
-                return (
-                  <Card
-                    key={partner.id}
-                    className="shadow-sm border-slate-200/80 dark:border-slate-700/80 group hover:shadow-md transition-shadow"
-                  >
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0">
-                            {typeIcon}
+                    return (
+                      <Card
+                        key={partner.id}
+                        className="shadow-sm border-slate-200/80 dark:border-slate-700/80 group hover:shadow-md transition-shadow"
+                      >
+                        <CardContent className="p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0">
+                                {typeIcon}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-medium text-sm text-slate-900 dark:text-white leading-tight truncate">
+                                  {partner.name}
+                                </h4>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-medium mt-1 border-slate-200 text-slate-500 dark:border-slate-600 dark:text-slate-400"
+                                >
+                                  {PARTNER_TYPE_LABELS[partner.type] || partner.type}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => openPartnerDialog(partner)}
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-slate-400" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 hover:text-red-600"
+                                onClick={() => handleDeletePartner(partner.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-slate-400" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <h4 className="font-medium text-sm text-slate-900 dark:text-white leading-tight truncate">
-                              {partner.name}
-                            </h4>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] font-medium mt-1 border-slate-200 text-slate-500 dark:border-slate-600 dark:text-slate-400"
-                            >
-                              {PARTNER_TYPE_LABELS[partner.type] || partner.type}
+
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                            {partner.relationship}
+                          </p>
+
+                          <div className="flex items-center gap-2">
+                            {partner.verificationLevel === 'claimed' && (
+                              <ShieldAlert className="h-3.5 w-3.5 text-blue-500" />
+                            )}
+                            {partner.verificationLevel === 'partner_confirmed' && (
+                              <Shield className="h-3.5 w-3.5 text-amber-500" />
+                            )}
+                            {partner.verificationLevel === 'publicly_verified' && (
+                              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                            )}
+                            <Badge variant={vConfig.variant} className={vConfig.className}>
+                              {vConfig.label}
                             </Badge>
                           </div>
-                        </div>
-                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => openPartnerDialog(partner)}
-                          >
-                            <Pencil className="h-3.5 w-3.5 text-slate-400" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 hover:text-red-600"
-                            onClick={() => handleDeletePartner(partner.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-slate-400" />
-                          </Button>
-                        </div>
-                      </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
 
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                        {partner.relationship}
+                {/* Empty state */}
+                {partners.length === 0 && (
+                  <Card className="shadow-sm border-slate-200/80 dark:border-slate-700/80">
+                    <CardContent className="p-8 text-center">
+                      <Handshake className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                      <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Tiada rakan kongsi</h3>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        Klik &quot;Tambah Rakan&quot; untuk menambah rakan kongsi baharu.
                       </p>
-
-                      <div className="flex items-center gap-2">
-                        {partner.verificationLevel === 'claimed' && (
-                          <ShieldAlert className="h-3.5 w-3.5 text-blue-500" />
-                        )}
-                        {partner.verificationLevel === 'partner_confirmed' && (
-                          <Shield className="h-3.5 w-3.5 text-amber-500" />
-                        )}
-                        {partner.verificationLevel === 'publicly_verified' && (
-                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                        )}
-                        <Badge variant={vConfig.variant} className={vConfig.className}>
-                          {vConfig.label}
-                        </Badge>
-                      </div>
                     </CardContent>
                   </Card>
-                )
-              })}
-            </div>
+                )}
+              </>
+            )}
 
             {/* Partner Dialog */}
             <Dialog open={partnerDialogOpen} onOpenChange={setPartnerDialogOpen}>
@@ -1395,10 +1615,10 @@ export default function AdminPage() {
                   </Button>
                   <Button
                     onClick={handleSavePartner}
-                    disabled={!partnerForm.name || !partnerForm.type}
+                    disabled={!partnerForm.name || !partnerForm.type || saving}
                     className="gap-2 bg-emerald-600 hover:bg-emerald-700"
                   >
-                    <Save className="h-4 w-4" />
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     {editingPartner ? 'Kemaskini' : 'Simpan'}
                   </Button>
                 </DialogFooter>
@@ -1423,164 +1643,191 @@ export default function AdminPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Bank Details */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
-                      <Landmark className="h-4 w-4 text-slate-400" />
-                      Butiran Akaun
-                    </h3>
-                    {bankingInfo.verified && (
-                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Disahkan
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="bankName" className="text-sm font-medium">
-                        Nama Bank
-                      </Label>
-                      <Input
-                        id="bankName"
-                        value={bankingInfo.bankName}
-                        onChange={(e) =>
-                          setBankingInfo((prev) => ({ ...prev, bankName: e.target.value }))
-                        }
-                        placeholder="Nama bank"
-                      />
+                {bankingLoading ? (
+                  <div className="space-y-6">
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-5 w-24" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2"><Skeleton className="h-4 w-20" /><Skeleton className="h-10 w-full" /></div>
+                        <div className="space-y-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>
+                      </div>
+                      <div className="space-y-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-10 w-full" /></div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="accHolder" className="text-sm font-medium">
-                        Nama Pemegang Akaun
-                      </Label>
-                      <Input
-                        id="accHolder"
-                        value={bankingInfo.accountHolder}
-                        onChange={(e) =>
-                          setBankingInfo((prev) => ({ ...prev, accountHolder: e.target.value }))
-                        }
-                        placeholder="Nama pemegang akaun"
-                      />
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-5 space-y-4">
+                      <Skeleton className="h-5 w-44" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>
+                        <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-full" /></div>
+                      </div>
+                      <Skeleton className="h-16 w-full" />
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accNumber" className="text-sm font-medium">
-                      No. Akaun
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="accNumber"
-                        type={showAccountNumber ? 'text' : 'password'}
-                        value={bankingInfo.accountNumber}
-                        onChange={(e) =>
-                          setBankingInfo((prev) => ({ ...prev, accountNumber: e.target.value }))
-                        }
-                        placeholder="No. akaun bank"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                        onClick={() => setShowAccountNumber(!showAccountNumber)}
-                      >
-                        {showAccountNumber ? (
-                          <EyeOff className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-slate-400" />
+                ) : (
+                  <>
+                    {/* Bank Details */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                          <Landmark className="h-4 w-4 text-slate-400" />
+                          Butiran Akaun
+                        </h3>
+                        {bankingInfo.verified && (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Disahkan
+                          </Badge>
                         )}
-                      </Button>
-                    </div>
-                    {!showAccountNumber && (
-                      <p className="text-xs text-slate-400">
-                        {maskAccountNumber(bankingInfo.accountNumber)}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                      </div>
 
-                <Separator />
-
-                {/* LHDN & Tax */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-5 space-y-4">
-                  <h3 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-slate-400" />
-                    Kelulusan LHDN & Cukai
-                  </h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="lhdnRef" className="text-sm font-medium">
-                        Rujukan Kelulusan LHDN
-                      </Label>
-                      <Input
-                        id="lhdnRef"
-                        value={bankingInfo.lhdnReference}
-                        onChange={(e) =>
-                          setBankingInfo((prev) => ({ ...prev, lhdnReference: e.target.value }))
-                        }
-                        placeholder="No. rujukan LHDN"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lhdnExpiry" className="text-sm font-medium">
-                        Tarikh Tamat Tempoh
-                      </Label>
-                      <Input
-                        id="lhdnExpiry"
-                        type="date"
-                        value={bankingInfo.lhdnExpiryDate}
-                        onChange={(e) =>
-                          setBankingInfo((prev) => ({ ...prev, lhdnExpiryDate: e.target.value }))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border p-4 bg-white dark:bg-slate-900">
-                    <div className="flex items-center gap-3">
-                      {bankingInfo.taxExempt ? (
-                        <div className="p-2 bg-emerald-100 rounded-lg dark:bg-emerald-900/30">
-                          <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="bankName" className="text-sm font-medium">
+                            Nama Bank
+                          </Label>
+                          <Input
+                            id="bankName"
+                            value={bankingInfo.bankName}
+                            onChange={(e) =>
+                              setBankingInfo((prev) => ({ ...prev, bankName: e.target.value }))
+                            }
+                            placeholder="Nama bank"
+                          />
                         </div>
-                      ) : (
-                        <div className="p-2 bg-slate-100 rounded-lg dark:bg-slate-800">
-                          <AlertCircle className="h-5 w-5 text-slate-400" />
+                        <div className="space-y-2">
+                          <Label htmlFor="accHolder" className="text-sm font-medium">
+                            Nama Pemegang Akaun
+                          </Label>
+                          <Input
+                            id="accHolder"
+                            value={bankingInfo.accountHolder}
+                            onChange={(e) =>
+                              setBankingInfo((prev) => ({ ...prev, accountHolder: e.target.value }))
+                            }
+                            placeholder="Nama pemegang akaun"
+                          />
                         </div>
-                      )}
-                      <div>
-                        <Label className="text-sm font-medium">Status Pengecualian Cukai</Label>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {bankingInfo.taxExempt
-                            ? 'Pertubuhan disahkan pengecualian cukai oleh LHDN'
-                            : 'Pertubuhan belum mempunyai pengecualian cukai'}
-                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="accNumber" className="text-sm font-medium">
+                          No. Akaun
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="accNumber"
+                            type={showAccountNumber ? 'text' : 'password'}
+                            value={bankingInfo.accountNumber}
+                            onChange={(e) =>
+                              setBankingInfo((prev) => ({ ...prev, accountNumber: e.target.value }))
+                            }
+                            placeholder="No. akaun bank"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                            onClick={() => setShowAccountNumber(!showAccountNumber)}
+                          >
+                            {showAccountNumber ? (
+                              <EyeOff className="h-4 w-4 text-slate-400" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-slate-400" />
+                            )}
+                          </Button>
+                        </div>
+                        {!showAccountNumber && (
+                          <p className="text-xs text-slate-400">
+                            {maskAccountNumber(bankingInfo.accountNumber)}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <Switch
-                      checked={bankingInfo.taxExempt}
-                      onCheckedChange={(checked) =>
-                        setBankingInfo((prev) => ({ ...prev, taxExempt: checked }))
-                      }
-                    />
-                  </div>
-                </div>
 
-                {/* Save Button */}
-                <div className="flex justify-end pt-2">
-                  <Button
-                    onClick={() => showSaveSuccess('banking')}
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    <Save className="h-4 w-4" />
-                    Simpan Maklumat Perbankan
-                  </Button>
-                </div>
+                    <Separator />
+
+                    {/* LHDN & Tax */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-5 space-y-4">
+                      <h3 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-slate-400" />
+                        Kelulusan LHDN & Cukai
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="lhdnRef" className="text-sm font-medium">
+                            Rujukan Kelulusan LHDN
+                          </Label>
+                          <Input
+                            id="lhdnRef"
+                            value={bankingInfo.lhdnReference}
+                            onChange={(e) =>
+                              setBankingInfo((prev) => ({ ...prev, lhdnReference: e.target.value }))
+                            }
+                            placeholder="No. rujukan LHDN"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="lhdnExpiry" className="text-sm font-medium">
+                            Tarikh Tamat Tempoh
+                          </Label>
+                          <Input
+                            id="lhdnExpiry"
+                            type="date"
+                            value={bankingInfo.lhdnExpiryDate}
+                            onChange={(e) =>
+                              setBankingInfo((prev) => ({ ...prev, lhdnExpiryDate: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border p-4 bg-white dark:bg-slate-900">
+                        <div className="flex items-center gap-3">
+                          {bankingInfo.taxExempt ? (
+                            <div className="p-2 bg-emerald-100 rounded-lg dark:bg-emerald-900/30">
+                              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-slate-100 rounded-lg dark:bg-slate-800">
+                              <AlertCircle className="h-5 w-5 text-slate-400" />
+                            </div>
+                          )}
+                          <div>
+                            <Label className="text-sm font-medium">Status Pengecualian Cukai</Label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {bankingInfo.taxExempt
+                                ? 'Pertubuhan disahkan pengecualian cukai oleh LHDN'
+                                : 'Pertubuhan belum mempunyai pengecualian cukai'}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={bankingInfo.taxExempt}
+                          onCheckedChange={(checked) =>
+                            setBankingInfo((prev) => ({ ...prev, taxExempt: checked }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        onClick={handleSaveBanking}
+                        disabled={saving}
+                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Simpan Maklumat Perbankan
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
