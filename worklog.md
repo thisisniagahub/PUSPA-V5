@@ -1,56 +1,22 @@
-# Worklog — Task 3: Fix Cases Page Dropdowns with API-Fetched Data
+---
+Task ID: 1-2
+Agent: Main
+Task: Clone and analyze PUSPA-V4 project
 
-**Date:** 2025-03-04
-**Task ID:** 3
-**Agent:** main
+Work Log:
+- Cloned PUSPA-V4 repository (already existed)
+- Read and analyzed all key files: package.json, schema.prisma, page.tsx, layout.tsx, db.ts, auth.ts, api.ts, etc.
+- Reviewed all API routes (dashboard/stats, members, cases, donations, donors, disbursements)
+- Reviewed module pages (dashboard, members)
+- Reviewed auth system (Supabase-based), middleware, auth-provider
 
-## Summary
-
-Replaced hardcoded `PROGRAMMES` and `MEMBERS` dropdown arrays in the Cases page with API-fetched data from `/api/v1/programmes` and `/api/v1/members`.
-
-## Changes Made
-
-### File: `/home/z/my-project/src/modules/cases/page.tsx`
-
-1. **Removed hardcoded arrays** (formerly lines 321-335):
-   - Removed `PROGRAMMES` array with 5 hardcoded programme entries
-   - Removed `MEMBERS` array with 5 hardcoded member entries
-
-2. **Added new types** (lines 321-337):
-   - `ProgrammeOption` interface: `{ id, name, category? }`
-   - `MemberOption` interface: `{ id, name, memberNumber?, ic?, phone?, address?, monthlyIncome?, householdSize? }`
-
-3. **Updated `CaseFormDialog` component** (line 797):
-   - Added `programmes: ProgrammeOption[]` and `members: MemberOption[]` props
-   - Replaced `PROGRAMMES.map(...)` with `programmes.map(...)` in the "Pautan Program" dropdown
-   - Replaced `MEMBERS.map(...)` with `members.map(...)` in the "Pautan Ahli" dropdown
-   - Added empty-state fallback: "Tiada program tersedia" / "Tiada ahli tersedia" when lists are empty
-   - Enhanced member display: shows `name (memberNumber)` when memberNumber is available
-
-4. **Updated `CaseDetailSheet` component** (line 1226):
-   - Added `programmes: ProgrammeOption[]` and `members: MemberOption[]` props
-   - Replaced `PROGRAMMES.find(...)` with `programmes.find(...)` for programme lookup
-   - Replaced `MEMBERS.find(...)` with `members.find(...)` for member lookup
-   - Replaced `MEMBERS` with `members` in `computeRiskFlags` call
-   - Added `members` to `useMemo` dependency array for risk flags
-
-5. **Updated `CasesPage` main component** (line 1756):
-   - Added `programmes` and `members` state with `useState<ProgrammeOption[]>([])` and `useState<MemberOption[]>([])`
-   - Added `fetchDropdownOptions` callback that fetches from `/programmes` and `/members` (pageSize=100) in parallel via `Promise.all`
-   - Added `fetchDropdownOptions()` call in the existing `useEffect` alongside `fetchCases()`
-   - Passed `programmes` and `members` props to both `<CaseFormDialog>` and `<CaseDetailSheet>`
-
-## Technical Details
-
-- Uses `api.get()` from `@/lib/api` which unwraps the `{ success, data }` envelope
-- API returns programme objects with `id`, `name`, `category`, etc.
-- API returns member objects with `id`, `name`, `memberNumber`, `ic`, etc.
-- Members endpoint supports `pageSize` query param; using `pageSize: 100` to get more members
-- Fetch failures for dropdown data are silently caught (dropdowns will just be empty)
-- The existing `api` helper from `@/lib/api` is used consistently
-
-## Verification
-
-- Lint check passes with no errors
-- No remaining references to hardcoded `PROGRAMMES` or `MEMBERS` constants
-- Dev server starts successfully
+Stage Summary:
+- **CRITICAL ISSUE #1: PostgreSQL Schema** - Prisma schema uses `provider = "postgresql"` with `@db.Decimal(12,2)`. Won't work with SQLite.
+- **CRITICAL ISSUE #2: No .env file** - No DATABASE_URL, no Supabase credentials. App cannot start.
+- **CRITICAL ISSUE #3: Supabase Auth dependency** - Entire auth system depends on external Supabase service. Without Supabase credentials, login is impossible.
+- **MOCK DATA in members page** - `initialMembers` array with 13 fake records used as initial state (lines 216-490 of members/page.tsx). Falls back to mock data if API fails.
+- **Hardcoded dashboard widgets** - "3 Kes Menunggu", "5 Donasi Baharu" etc. are hardcoded numbers, not from API.
+- **Fake SystemMetrics** - CPU/latency data in developer dashboard is entirely hardcoded.
+- **API routes are REAL** - Members, cases, donations, donors, disbursements all use real Prisma queries with proper CRUD, validation, and error handling.
+- **Seed data is REAL** - prisma/seed.ts has realistic seed data for 15 members, 15 cases, 20 donations, 8 programmes, etc.
+- **Architecture is solid** - ViewRenderer pattern, Zustand stores, dynamic imports, proper API envelope pattern, domain normalization.
