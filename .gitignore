@@ -52,3 +52,34 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database
+*.db
+*.db-journal
+/db/
+
+# Uploads
+/upload/
+
+# Agent context & work logs
+/agent-ctx/
+worklog.md
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Examples
+/examples/
+
+# Mini services runtime
+/mini-services/
+
+# Download
+/download/
+
+# Keep-alive / daemon scripts
+keep-alive.sh
+daemon-start.sh
+start-dev.sh

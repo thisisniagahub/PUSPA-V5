@@ -9,6 +9,7 @@ import {
   Loader2, Mail, Phone, Lock, Camera, ToggleLeft, ToggleRight,
   Monitor, Moon, Sun, Globe, Clock, LogOut, Smartphone,
   UserPlus, Crown, Code2, Briefcase, Flower2,
+  Server, ExternalLink, RefreshCw,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -115,6 +116,17 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark')
   const [language, setLanguage] = useState('ms')
   const [compactMode, setCompactMode] = useState(false)
+
+  // ── OpenClaw State ──
+  const [ocGatewayUrl, setOcGatewayUrl] = useState('http://localhost:18789')
+  const [ocGatewayToken, setOcGatewayToken] = useState('')
+  const [ocAgentModel, setOcAgentModel] = useState('openclaw/puspacare')
+  const [ocBridgeUrl, setOcBridgeUrl] = useState('https://operator.gangniaga.my/puspa-bridge')
+  const [ocBridgeToken, setOcBridgeToken] = useState('')
+  const [showGatewayToken, setShowGatewayToken] = useState(false)
+  const [showBridgeToken, setShowBridgeToken] = useState(false)
+  const [ocTesting, setOcTesting] = useState(false)
+  const [ocStatus, setOcStatus] = useState<{ connected: boolean; latency?: string; version?: string; uptime?: string } | null>(null)
 
   // ── Fetch Users ──
   const fetchUsers = useCallback(async () => {
@@ -324,6 +336,39 @@ export default function SettingsPage() {
 
   const effectiveRole = currentUser?.role || 'staff'
   const isAdmin = effectiveRole === 'admin' || effectiveRole === 'developer'
+  const isDeveloper = effectiveRole === 'developer'
+
+  // ── OpenClaw: Test Connection ──
+  const handleTestConnection = async () => {
+    setOcTesting(true)
+    setOcStatus(null)
+    try {
+      const res = await fetch('/api/v1/openclaw/status')
+      const json = await res.json()
+      if (json.success && json.data) {
+        const d = json.data
+        setOcStatus({
+          connected: !!d.connected,
+          latency: d.latencyMs != null ? `${d.latencyMs}ms` : '-',
+          version: d.version ?? '-',
+          uptime: d.uptime != null ? (typeof d.uptime === 'number' ? `${Math.floor(d.uptime / 3600)}j ${Math.floor((d.uptime % 3600) / 60)}m` : String(d.uptime)) : '-',
+        })
+        if (d.connected) {
+          toast.success('OpenClaw Gateway berjaya disambung')
+        } else {
+          toast.error(d.error || 'Gateway tidak berhubung')
+        }
+      } else {
+        setOcStatus({ connected: false })
+        toast.error(json.error || 'Gagal menyambung ke OpenClaw Gateway')
+      }
+    } catch {
+      setOcStatus({ connected: false })
+      toast.error('Gagal menyambung ke OpenClaw Gateway')
+    } finally {
+      setOcTesting(false)
+    }
+  }
 
   // Count users by role
   const staffCount = users.filter(u => u.role === 'staff').length
@@ -345,7 +390,7 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="profil" className="space-y-6">
-        <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto p-1.5 bg-zinc-100 dark:bg-zinc-800/50 border border-black/5 dark:border-white/5 rounded-2xl">
+        <TabsList className={cn('w-full grid h-auto p-1.5 bg-zinc-100 dark:bg-zinc-800/50 border border-black/5 dark:border-white/5 rounded-2xl', isDeveloper ? 'grid-cols-2 sm:grid-cols-5' : isAdmin ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')}>
           <TabsTrigger value="profil" className="flex items-center gap-2 py-2.5 rounded-xl text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:data-[state=active]:bg-violet-600 dark:data-[state=active]:text-white">
             <User className="h-3.5 w-3.5" /> Profil
           </TabsTrigger>
@@ -358,6 +403,11 @@ export default function SettingsPage() {
           {isAdmin && (
             <TabsTrigger value="pengguna" className="flex items-center gap-2 py-2.5 rounded-xl text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:data-[state=active]:bg-violet-600 dark:data-[state=active]:text-white">
               <Users className="h-3.5 w-3.5" /> Pengguna
+            </TabsTrigger>
+          )}
+          {isDeveloper && (
+            <TabsTrigger value="openclaw" className="flex items-center gap-2 py-2.5 rounded-xl text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:data-[state=active]:bg-violet-600 dark:data-[state=active]:text-white">
+              <Server className="h-3.5 w-3.5" /> OpenClaw
             </TabsTrigger>
           )}
         </TabsList>
@@ -900,6 +950,211 @@ export default function SettingsPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </TabsContent>
+        )}
+
+        {/* ═══════════════════════════════════════
+            TAB 5: OPENCLAW (Developer Only)
+        ═══════════════════════════════════════ */}
+        {isDeveloper && (
+          <TabsContent value="openclaw" className="space-y-6">
+            {/* Gateway Configuration Card */}
+            <Card className="rounded-3xl border-black/5 dark:border-white/5">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 dark:text-violet-400">
+                    <Server className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Konfigurasi Gateway</CardTitle>
+                    <CardDescription>Persettingan sambungan OpenClaw Gateway</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-zinc-500">OPENCLAW_GATEWAY_URL</Label>
+                  <Input value={ocGatewayUrl} readOnly className="rounded-xl bg-zinc-50 dark:bg-zinc-800 border-black/5 dark:border-white/5 font-mono text-xs" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-zinc-500">OPENCLAW_GATEWAY_TOKEN</Label>
+                  <div className="relative">
+                    <Input type={showGatewayToken ? 'text' : 'password'} value={ocGatewayToken || '••••••••••••••••'} readOnly className="rounded-xl bg-zinc-50 dark:bg-zinc-800 border-black/5 dark:border-white/5 font-mono text-xs pr-10" />
+                    <button onClick={() => setShowGatewayToken(!showGatewayToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                      {showGatewayToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-zinc-500">OPENCLAW_AGENT_MODEL</Label>
+                  <Input value={ocAgentModel} readOnly className="rounded-xl bg-zinc-50 dark:bg-zinc-800 border-black/5 dark:border-white/5 font-mono text-xs" />
+                </div>
+                <p className="text-[10px] text-zinc-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Nilai dibaca dari fail .env — kemaskini fail tersebut dan mulakan semula pelayan</p>
+              </CardContent>
+            </Card>
+
+            {/* Bridge Configuration Card */}
+            <Card className="rounded-3xl border-black/5 dark:border-white/5">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 dark:text-violet-400">
+                    <RefreshCw className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Konfigurasi Bridge</CardTitle>
+                    <CardDescription>Persettingan sambungan OpenClaw Bridge</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-zinc-500">OPENCLAW_BRIDGE_URL</Label>
+                  <Input value={ocBridgeUrl} readOnly className="rounded-xl bg-zinc-50 dark:bg-zinc-800 border-black/5 dark:border-white/5 font-mono text-xs" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-zinc-500">OPENCLAW_BRIDGE_TOKEN</Label>
+                  <div className="relative">
+                    <Input type={showBridgeToken ? 'text' : 'password'} value={ocBridgeToken || '••••••••••••••••'} readOnly className="rounded-xl bg-zinc-50 dark:bg-zinc-800 border-black/5 dark:border-white/5 font-mono text-xs pr-10" />
+                    <button onClick={() => setShowBridgeToken(!showBridgeToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                      {showBridgeToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-zinc-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Nilai dibaca dari fail .env — kemaskini fail tersebut dan mulakan semula pelayan</p>
+              </CardContent>
+            </Card>
+
+            {/* Connection Status Card */}
+            <Card className="rounded-3xl border-black/5 dark:border-white/5">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 dark:text-violet-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">Status Sambungan</CardTitle>
+                      <CardDescription>Semak status sambungan gateway</CardDescription>
+                    </div>
+                  </div>
+                  <Button onClick={handleTestConnection} disabled={ocTesting} className="gap-2 bg-violet-600 text-white hover:bg-violet-700 rounded-xl" size="sm">
+                    {ocTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Uji Sambungan
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {ocStatus === null && !ocTesting && (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <Server className="h-8 w-8 text-zinc-300 dark:text-zinc-600 mb-2" />
+                    <p className="text-sm text-zinc-500">Klik &quot;Uji Sambungan&quot; untuk menyemak status gateway</p>
+                  </div>
+                )}
+                {ocTesting && (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
+                  </div>
+                )}
+                {ocStatus !== null && !ocTesting && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                          <Server className="h-4 w-4" />
+                        </div>
+                        <span className="text-sm text-zinc-700 dark:text-zinc-300">Status Gateway</span>
+                      </div>
+                      <Badge variant="outline" className={cn('text-[10px] border gap-1', ocStatus.connected ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800' : 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800')}>
+                        {ocStatus.connected ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        {ocStatus.connected ? 'Berhubung' : 'Luar Talian'}
+                      </Badge>
+                    </div>
+                    {ocStatus.connected && (
+                      <>
+                        <Separator />
+                        <div className="flex items-center justify-between py-2">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                              <Clock className="h-4 w-4" />
+                            </div>
+                            <span className="text-sm text-zinc-700 dark:text-zinc-300">Kependaman</span>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-800">
+                            {ocStatus.latency}
+                          </Badge>
+                        </div>
+                        <Separator />
+                        <div className="flex items-center justify-between py-2">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                              <Code2 className="h-4 w-4" />
+                            </div>
+                            <span className="text-sm text-zinc-700 dark:text-zinc-300">Versi</span>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-800">
+                            {ocStatus.version}
+                          </Badge>
+                        </div>
+                        <Separator />
+                        <div className="flex items-center justify-between py-2">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                              <Clock className="h-4 w-4" />
+                            </div>
+                            <span className="text-sm text-zinc-700 dark:text-zinc-300">Masa Aktif</span>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-800">
+                            {ocStatus.uptime}
+                          </Badge>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Setup Guide Card */}
+            <Card className="rounded-3xl border-black/5 dark:border-white/5">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 dark:text-violet-400">
+                    <ExternalLink className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Panduan Pemasangan</CardTitle>
+                    <CardDescription>Cara menyediakan OpenClaw Gateway</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Ikuti langkah-langkah berikut untuk menyediakan OpenClaw Gateway:
+                  </p>
+                  <ol className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400 list-decimal list-inside">
+                    <li>Pasang OpenClaw Gateway pada pelayan anda</li>
+                    <li>Tetapkan pemboleh ubah persekitaran dalam fail <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono">.env</code></li>
+                    <li>Mulakan semula pelayan untuk menggunakan perubahan</li>
+                  </ol>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pemboleh Ubah Persekitaran Diperlukan</p>
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 space-y-1.5 font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
+                      <p><span className="text-violet-600 dark:text-violet-400">OPENCLAW_GATEWAY_URL</span>=http://localhost:18789</p>
+                      <p><span className="text-violet-600 dark:text-violet-400">OPENCLAW_GATEWAY_TOKEN</span>=your-gateway-token</p>
+                      <p><span className="text-violet-600 dark:text-violet-400">OPENCLAW_AGENT_MODEL</span>=openclaw/puspacare</p>
+                      <p><span className="text-violet-600 dark:text-violet-400">OPENCLAW_BRIDGE_URL</span>=https://operator.gangniaga.my/puspa-bridge</p>
+                      <p><span className="text-violet-600 dark:text-violet-400">OPENCLAW_BRIDGE_TOKEN</span>=your-bridge-token</p>
+                    </div>
+                  </div>
+                  <Separator />
+                  <a href="https://docs.openclaw.ai" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400 hover:underline font-medium">
+                    <ExternalLink className="h-3.5 w-3.5" /> docs.openclaw.ai
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
       </Tabs>
