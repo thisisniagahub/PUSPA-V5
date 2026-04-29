@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { AuthorizationError, requireAuth } from '@/lib/auth';
 
 // ─── GET: Document stats for dashboard cards ─────────────────────────────────
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    await requireAuth();
+    await requireAuth(request);
     const now = new Date();
 
     // Count active categories

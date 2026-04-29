@@ -79,7 +79,7 @@ interface ReportType {
   title: string
   description: string
   color: string
-  report: string
+  prompt: string
 }
 
 interface CommLog {
@@ -208,32 +208,7 @@ const reportTypes: ReportType[] = [
     title: 'Ringkasan Organisasi',
     description: 'Gambaran keseluruhan prestasi dan operasi PUSPA',
     color: 'from-emerald-500 to-teal-600',
-    report: `# 📊 Ringkasan Organisasi PUSPA
-
-## Gambaran Keseluruhan
-**Tarikh Laporan:** 21 April 2026  
-**Tempoh:** Januari - April 2026
-
----
-
-## Statistik Utama
-
-| Metrik | Nilai | Perubahan |
-|--------|-------|-----------|
-| Jumlah Ahli Berdaftar | 342 | +12.3% |
-| Ahli Aktif | 287 | +8.7% |
-| Program Aktif | 15 | +3 baru |
-| Sukan Sukarelawan | 48 | +15.2% |
-| Kumpulan Donasi (Bulan Ini) | RM 45,230 | +22.1% |
-
----
-
-## Pencapaian Utama
-
-1. **Program AsnafCare** telah berjaya membantu **89 keluarga** di kawasan Hulu Klang
-2. **Kempen Ramadhan 2026** mengumpul **RM 125,000** - melebihi sasaran sebanyak 25%
-3. **Kelas Tilawah Dewasa** mencatatkan kehadiran purata **92%** setiap sesi
-4. **Program Mentoring Belia** melibatkan **34 orang** belia berusia 18-25 tahun`,
+    prompt: 'Jana laporan ringkasan organisasi PUSPA yang merangkumi: statistik keahlian (jumlah ahli, ahli aktif vs tidak aktif), program aktif, jumlah sukarelawan, dan kumpulan donasi. Guna data sebenar dari pangkalan data. Format dalam Markdown dengan jadual.',
   },
   {
     id: 'finance',
@@ -241,24 +216,7 @@ const reportTypes: ReportType[] = [
     title: 'Laporan Kewangan',
     description: 'Analisis kewangan dan aliran wang organisasi',
     color: 'from-amber-500 to-orange-600',
-    report: `# 💰 Laporan Kewangan PUSPA
-
-## Suku Tahun Pertama 2026
-
----
-
-## Ringkasan Kewangan
-
-| Kategori | Jumlah (RM) | Peratus |
-|----------|-------------|---------|
-| **Pendapatan Jumlah** | **285,450** | 100% |
-| └ Donasi Individu | 142,300 | 49.9% |
-| └ Derma Korporat | 89,200 | 31.2% |
-| └ Geran Kerajaan | 38,500 | 13.5% |
-| **Perbelanjaan Jumlah** | **231,780** | 100% |
-| └ Bantuan Langsung (BMT) | 128,400 | 55.4% |
-| └ Program & Aktiviti | 52,300 | 22.6% |
-| **Baki Bersih** | **RM 53,670** | — |`,
+    prompt: 'Jana laporan kewangan PUSPA yang merangkumi: ringkasan pendapatan (donasi individu, derma korporat, geran kerajaan), perbelanjaan (bantuan langsung BMT, program & aktiviti), dan baki bersih. Guna data sebenar dari pangkalan data. Format dalam Markdown dengan jadual.',
   },
   {
     id: 'programme',
@@ -266,15 +224,7 @@ const reportTypes: ReportType[] = [
     title: 'Laporan Program',
     description: 'Status dan prestasi semua program aktif',
     color: 'from-rose-500 to-pink-600',
-    report: `# ❤️ Laporan Program PUSPA
-
-## Status Program Aktif — April 2026
-
-### 1. AsnafCare - 🟢 Aktif - 89 keluarga - Penilaian: 4.5/5.0
-### 2. Pusat Sunnah Preschool - 🟢 Aktif - 24 pelajar - Penilaian: 4.8/5.0
-### 3. Kelas Tilawah Dewasa - 🟢 Aktif - 67 peserta - Penilaian: 4.3/5.0
-### 4. Mentoring Belia PUSPA - 🟡 Sedang Berjalan - 34 belia - Penilaian: 4.0/5.0
-### 5. Klinik Kesihatan Komuniti - 🟡 Pendekatan Rakan Strategik - Penilaian: 4.2/5.0`,
+    prompt: 'Jana laporan program PUSPA yang merangkumi: senarai semua program aktif dengan status, bilangan penerima manfaat, belanjawan vs perbelanjaan, dan penilaian prestasi. Guna data sebenar dari pangkalan data. Format dalam Markdown.',
   },
   {
     id: 'demographic',
@@ -282,24 +232,7 @@ const reportTypes: ReportType[] = [
     title: 'Demografi Ahli',
     description: 'Analisis demografi dan profil ahli PUSPA',
     color: 'from-violet-500 to-purple-600',
-    report: `# 👥 Demografi Ahli PUSPA
-
-## Ringkasan Keahlian
-
-| Kategori | Bilangan | Peratus |
-|----------|----------|---------|
-| Jumlah Ahli Berdaftar | 342 | 100% |
-| Ahli Aktif | 287 | 83.9% |
-| Ahli Tidak Aktif | 55 | 16.1% |
-
-## Taburan Mengikut Lokasi
-| Kawasan | Bilangan | Percent |
-|---------|----------|---------|
-| Hulu Klang | 98 | 28.7% |
-| Gombak | 85 | 24.9% |
-| Ampang | 72 | 21.1% |
-| Setapak | 45 | 13.2% |
-| Wangsa Maju | 28 | 8.2% |`,
+    prompt: 'Jana laporan demografi ahli PUSPA yang merangkumi: taburan status keahlian, analisis pendapatan isi rumah, saiz isi rumah, taburan mengikut lokasi/negeri, dan status perkahwinan. Guna data sebenar dari pangkalan data. Format dalam Markdown dengan jadual.',
   },
 ]
 
@@ -355,29 +288,7 @@ const quickQuestions = [
   'Siapakah penerima bantuan terbesar?',
 ]
 
-const initialCommLogs: CommLog[] = [
-  {
-    id: '1',
-    name: 'Puan Siti Aminah',
-    type: 'Lawatan',
-    notes: 'Lawatan rumah ke rumah pesakit di Hulu Klang. Keperluan segera: bekalan makanan.',
-    date: '2026-04-20',
-  },
-  {
-    id: '2',
-    name: 'Encik Ahmad bin Hassan',
-    type: 'Panggilan',
-    notes: 'Telah dihubungi berkenaan status permohonan BMT. Akan diikuti dengan lawatan minggu depan.',
-    date: '2026-04-19',
-  },
-  {
-    id: '3',
-    name: 'Puan Nurul Izzah',
-    type: 'Email',
-    notes: 'Pengesahan penerimaan bantuan pendidikan untuk 3 orang anak. Dokumen lengkap.',
-    date: '2026-04-18',
-  },
-]
+const initialCommLogs: CommLog[] = []
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -485,7 +396,6 @@ export default function AIToolsPage() {
   const [calcIncome, setCalcIncome] = useState('1500')
   const [calcExpenses, setCalcExpenses] = useState('1200')
   const [calcResult, setCalcResult] = useState<null | { amount: number; breakdown: Record<string, number> }>(null)
-  const [isCalculating, setIsCalculating] = useState(false)
 
   const [welfareSliders, setWelfareSliders] = useState({
     pendapatan: 3,
@@ -495,7 +405,6 @@ export default function AIToolsPage() {
     sokonganSosial: 5,
   })
   const [welfareResult, setWelfareResult] = useState<null | { score: number; recommendation: string }>(null)
-  const [isAssessing, setIsAssessing] = useState(false)
 
   const [commName, setCommName] = useState('')
   const [commType, setCommType] = useState('')
@@ -510,17 +419,24 @@ export default function AIToolsPage() {
   // ── Handlers ──
 
   const handleGenerateReport = useCallback(
-    (report: ReportType) => {
+    async (report: ReportType) => {
       setSelectedReport(report)
       setGeneratedReport('')
       setIsGenerating(true)
       setDialogOpen(true)
       setCopied(false)
 
-      setTimeout(() => {
+      try {
+        const response = await api.post<{ response: string }>('/ai/chat', {
+          message: report.prompt,
+          context: 'Jana laporan berdasarkan data sebenar dari pangkalan data PUSPA.',
+        })
+        setGeneratedReport(response.response)
+      } catch {
+        setGeneratedReport('**Ralat:** Gagal menjana laporan. Sila cuba lagi dalam beberapa saat. Jika masalah berterusan, hubungi pentadbir sistem.')
+      } finally {
         setIsGenerating(false)
-        setGeneratedReport(report.report)
-      }, 2500)
+      }
     },
     []
   )
@@ -543,17 +459,22 @@ export default function AIToolsPage() {
     URL.revokeObjectURL(url)
   }, [generatedReport, selectedReport])
 
-  const handleCustomGenerate = useCallback(() => {
+  const handleCustomGenerate = useCallback(async () => {
     if (!customPrompt.trim()) return
     setIsGeneratingCustom(true)
     setCustomResponse('')
 
-    setTimeout(() => {
+    try {
+      const response = await api.post<{ response: string }>('/ai/chat', {
+        message: customPrompt,
+        context: 'Analisis data PUSPA dan berikan jawapan yang terperinci.',
+      })
+      setCustomResponse(response.response)
+    } catch {
+      setCustomResponse('**Ralat:** Gagal menjana respons. Sila cuba lagi dalam beberapa saat.')
+    } finally {
       setIsGeneratingCustom(false)
-      setCustomResponse(
-        `## Hasil Analisis AI\n\nBerdasarkan pertanyaan anda: _"${customPrompt}"_\n\n\n### Ringkasan\n\nBerdasarkan data yang terdapat dalam sistem PUSPA, berikut adalah maklumat yang relevan:\n\n- **Jumlah rekod berkaitan**: 47 entri ditemui\n- **Tempoh liputan**: Januari - April 2026\n- **Sumber data**: Sistem Pengurusan Ahli, Modul Kewangan, Modul Program\n\n### Butiran\n\nAnalisis menunjukkan trend positif dalam operasi PUSPA bagi suku tahun pertama 2026. Jumlah ahli aktif mencatatkan peningkatan sebanyak **12.3%** berbanding tempoh yang sama tahun lepas.\n\n### Cadangan\n\n1. Menjalankan audit dalaman untuk data yang lebih tepat\n2. Mengemaskini profil ahli secara berkala\n3. Mempertingkatkan pengumpulan data untuk analisis masa hadapan\n\n> _*Laporan ini dijana oleh AI dan perlu disahkan oleh pentadbir._*`
-      )
-    }, 3000)
+    }
   }, [customPrompt])
 
   // ── Real AI Chat via backend ──
@@ -1036,58 +957,60 @@ export default function AIToolsPage() {
   }
 
   // ── Eligibility Check ──
-  const handleCheckEligibility = useCallback(() => {
+  const handleCheckEligibility = useCallback(async () => {
     if (!icInput.trim()) return
     setIsCheckingEligibility(true)
     setIcResult(null)
 
-    setTimeout(() => {
-      setIsCheckingEligibility(false)
+    try {
+      const data = await api.post<{
+        member: { id: string; name: string; ic: string; householdSize: number; monthlyIncome: number; hadKifayah: number; deficit: number }
+        eligible: boolean
+        programmes: { name: string; score: number; status: string }[]
+      }>('/ai/eligibility', { ic: icInput.trim() })
       setIcResult({
-        eligible: true,
-        programmes: [
-          { name: 'AsnafCare - Bantuan Makanan', score: 92, status: 'Layak' },
-          { name: 'BMT Kewangan Bulanan', score: 88, status: 'Layak' },
-          { name: 'Bantuan Pendidikan Anak', score: 75, status: 'Layak' },
-          { name: 'Program Mentoring Belia', score: 60, status: 'Perlu Semakan' },
-          { name: 'Tabung Kesihatan Komuniti', score: 45, status: 'Tidak Layak' },
-        ],
+        eligible: data.eligible,
+        programmes: data.programmes,
       })
-    }, 2000)
+    } catch {
+      setIcResult(null)
+    } finally {
+      setIsCheckingEligibility(false)
+    }
   }, [icInput])
 
   // ── Financial Calculator ──
   const handleCalculate = useCallback(() => {
-    setIsCalculating(true)
     setCalcResult(null)
 
     const household = parseInt(calcHouseholdSize) || 4
     const income = parseFloat(calcIncome) || 0
     const expenses = parseFloat(calcExpenses) || 0
-    const deficit = Math.max(0, expenses - income)
+
+    // Kifayah-based calculation (Selangor LZS guidelines)
+    const baseHousehold = 1180
+    const childAllowance = 250
+    const hadKifayah = Math.max(baseHousehold, baseHousehold + Math.max(0, household - 2) * childAllowance)
+    const deficit = Math.max(0, hadKifayah - income)
     const bmt = Math.min(deficit * 0.7, household * 400)
     const foodAllowance = Math.min(bmt * 0.45, household * 200)
     const educationAllowance = Math.min(bmt * 0.25, household * 120)
     const healthAllowance = Math.min(bmt * 0.20, household * 80)
     const otherAllowance = bmt - foodAllowance - educationAllowance - healthAllowance
 
-    setTimeout(() => {
-      setIsCalculating(false)
-      setCalcResult({
-        amount: Math.round(bmt),
-        breakdown: {
-          'Wang Saku Makanan': Math.round(foodAllowance),
-          'Bantuan Pendidikan': Math.round(educationAllowance),
-          'Tambahan Kesihatan': Math.round(healthAllowance),
-          'Lain-lain Keperluan': Math.round(otherAllowance),
-        },
-      })
-    }, 2000)
+    setCalcResult({
+      amount: Math.round(bmt),
+      breakdown: {
+        'Wang Saku Makanan': Math.round(foodAllowance),
+        'Bantuan Pendidikan': Math.round(educationAllowance),
+        'Tambahan Kesihatan': Math.round(healthAllowance),
+        'Lain-lain Keperluan': Math.round(otherAllowance),
+      },
+    })
   }, [calcHouseholdSize, calcIncome, calcExpenses])
 
   // ── Welfare Assessment ──
   const handleAssessWelfare = useCallback(() => {
-    setIsAssessing(true)
     setWelfareResult(null)
 
     const { pendapatan, perumahan, kesihatan, pendidikan, sokonganSosial } =
@@ -1111,10 +1034,7 @@ export default function AIToolsPage() {
         'Ahli ini **memerlukan bantuan segera dan prioriti tinggi**. Segera rujuk kepada Unit Kebajikan untuk tindakan lanjut dan bantuan kecemasan.'
     }
 
-    setTimeout(() => {
-      setIsAssessing(false)
-      setWelfareResult({ score, recommendation })
-    }, 2000)
+    setWelfareResult({ score, recommendation })
   }, [welfareSliders])
 
   // ── Communication Log ──
@@ -1665,8 +1585,8 @@ export default function AIToolsPage() {
                       <Input type="number" value={calcExpenses} onChange={(e) => setCalcExpenses(e.target.value)} className="mt-1" />
                     </div>
                   </div>
-                  <Button onClick={handleCalculate} disabled={isCalculating} className="w-full">
-                    {isCalculating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Mengira...</> : <><Calculator className="h-4 w-4 mr-2" />Kira Bantuan</>}
+                  <Button onClick={handleCalculate} className="w-full">
+                    <><Calculator className="h-4 w-4 mr-2" />Kira Bantuan</>
                   </Button>
                   {calcResult && (
                     <div className="space-y-2 mt-4 pt-4 border-t">
@@ -1718,8 +1638,8 @@ export default function AIToolsPage() {
                       />
                     </div>
                   ))}
-                  <Button onClick={handleAssessWelfare} disabled={isAssessing} className="w-full">
-                    {isAssessing ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Menilai...</> : <><ClipboardList className="h-4 w-4 mr-2" />Nilai Kebajikan</>}
+                  <Button onClick={handleAssessWelfare} className="w-full">
+                    <><ClipboardList className="h-4 w-4 mr-2" />Nilai Kebajikan</>
                   </Button>
                   {welfareResult && (
                     <div className="space-y-3 mt-4 pt-4 border-t">

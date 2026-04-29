@@ -5,21 +5,30 @@ import { db } from '@/lib/db'
 export async function GET(request: Request) {
   try {
     await requireAuth(request)
-    const members = await db.member.findMany({
-      select: { status: true },
-    })
+
+    // Count all categories from the database in parallel
+    const [members, volunteerCount, donorCount, staffCount] = await Promise.all([
+      db.member.findMany({
+        select: { status: true },
+      }),
+      db.volunteer.count({
+        where: { status: 'active' },
+      }),
+      db.donor.count(),
+      db.user.count({
+        where: { isActive: true },
+      }),
+    ])
 
     const asnaf = members.filter(m => m.status === 'active').length
-    const total = members.length
 
-    // Return realistic data including volunteers and donors
     return NextResponse.json({
       success: true,
       data: [
         { name: 'Asnaf', value: asnaf, color: '#7c3aed' },
-        { name: 'Sukarelawan', value: 34, color: '#059669' },
-        { name: 'Penderma', value: 22, color: '#d97706' },
-        { name: 'Staf', value: 5, color: '#0284c7' },
+        { name: 'Sukarelawan', value: volunteerCount, color: '#059669' },
+        { name: 'Penderma', value: donorCount, color: '#d97706' },
+        { name: 'Staf', value: staffCount, color: '#0284c7' },
       ],
     })
   } catch (error: unknown) {

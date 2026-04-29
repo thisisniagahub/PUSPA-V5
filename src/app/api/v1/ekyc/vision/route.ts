@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthorizationError, requireRole } from '@/lib/auth'
+import ZAI from 'z-ai-web-dev-sdk'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,20 +15,71 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Simulate VLM processing delay (e.g., waiting for GPT-4 Vision)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    // Use VLM SDK to analyze the IC image
+    const zai = await ZAI.create()
 
-    // Simulate intelligent extraction based on typical Malaysian IC data
-    // In production, this would call the configured OpenClaw vision-capable model
-    const extractedData = {
-      name: 'Ahmad bin Abu',
-      ic: '900101-14-5555',
-      address: '123 Jalan Ampang, 50450 Kuala Lumpur',
-      dateOfBirth: '1990-01-01',
-      gender: 'Lelaki'
+    const prompt = `You are an OCR system specialized in reading Malaysian Identity Cards (Kad Pengenalan / MyKad). Analyze the provided image of a Malaysian IC and extract the following information. Return ONLY valid JSON with these exact keys, no extra text:
+
+{
+  "name": "Full name as written on the IC (in Malay format: Name bin/binti Father's name)",
+  "ic": "IC number in format XXXXXX-XX-XXXX",
+  "address": "Full address as printed on the IC",
+  "dateOfBirth": "Date of birth in YYYY-MM-DD format (derived from the IC number if not explicitly shown)",
+  "gender": "Lelaki or Perempuan (derived from the last digit of IC: odd=Lelaki, even=Perempuan)"
+}
+
+If any field cannot be read from the image, use an empty string for that field. Be as accurate as possible with the extraction.`
+
+    const response = await zai.chat.completions.createVision({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      thinking: { type: 'disabled' },
+    })
+
+    const vlmContent = response.choices[0]?.message?.content || ''
+
+    // Parse the VLM response as JSON
+    let extractedData: {
+      name: string
+      ic: string
+      address: string
+      dateOfBirth: string
+      gender: string
     }
 
-    return NextResponse.json({ success: true, data: extractedData })
+    try {
+      // Try to extract JSON from the response — the VLM may wrap it in markdown code blocks
+      const jsonMatch = vlmContent.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        extractedData = JSON.parse(jsonMatch[0])
+      } else {
+        throw new Error('No JSON object found in VLM response')
+      }
+    } catch {
+      console.error('Failed to parse VLM response as JSON:', vlmContent)
+      return NextResponse.json(
+        { success: false, error: 'Gagal mengekstrak maklumat dari gambar — format respons tidak sah' },
+        { status: 422 }
+      )
+    }
+
+    // Validate and provide defaults for missing fields
+    const result = {
+      name: extractedData.name || '',
+      ic: extractedData.ic || '',
+      address: extractedData.address || '',
+      dateOfBirth: extractedData.dateOfBirth || '',
+      gender: extractedData.gender || '',
+    }
+
+    return NextResponse.json({ success: true, data: result })
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(

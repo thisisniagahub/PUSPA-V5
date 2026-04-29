@@ -66,9 +66,9 @@ export async function createBotApiKey({
 }
 
 export async function verifyBotApiKey(rawKey: string) {
-  // if (!rawKey.startsWith('psbot_')) {
-  //   return null
-  // }
+  if (!rawKey.startsWith('psbot_')) {
+    return null
+  }
 
   const keyHash = createHash('sha256').update(rawKey).digest('hex')
 

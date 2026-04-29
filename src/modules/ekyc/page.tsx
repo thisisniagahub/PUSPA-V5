@@ -120,7 +120,7 @@ const STEPS = [
 
 const fmt = (n: number) => `RM${n.toLocaleString('ms-MY')}`;
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const rndScore = (lo: number, hi: number) => Math.round((Math.random() * (hi - lo) + lo) * 10) / 10;
+// Score computation is now done by the backend via /api/v1/ekyc/analyze-selfie
 const scoreCls = (s: number) => s >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : s >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200';
 const riskCls = (r: string) => r === 'Rendah' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : r === 'Sederhana' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200';
 const normalizeStatus = (value?: string | null): KycStatus => {
@@ -317,7 +317,6 @@ export default function EKYCPage() {
   const canNext = [!!member, !!icFront && !!icBack, selfie !== null && liveScore !== null, true][step] ?? false;
 
   const next = () => {
-    if (step === 2) { setFaceScore(rndScore(85, 98)); }
     setStep(s => Math.min(s + 1, 3));
   };
   const back = () => setStep(s => Math.max(s - 1, 0));
@@ -344,12 +343,30 @@ export default function EKYCPage() {
       setLiveState(p => {
         const nd = [...p.done]; nd[p.ch] = true;
         if (p.ch + 1 >= CHALLENGES.length) {
+          // Capture the current selfie URL from the state updater
+          const currentSelfieUrl = p.img;
+          const currentIcFrontUrl = icFront;
           setTimeout(() => {
-            const sc = rndScore(85, 99);
-            setLiveState(p => {
-              if (p.img) { setSelfie(p.img); setLiveScore(sc); }
-              return { ...p, score: sc, running: false };
-            });
+            // Submit selfie + IC to backend for real VLM-based analysis
+            (async () => {
+              try {
+                const result = await api.post<{ livenessScore: number; faceMatchScore: number }>('/ekyc/analyze-selfie', {
+                  selfieUrl: currentSelfieUrl,
+                  icFrontUrl: currentIcFrontUrl,
+                });
+                setLiveState(p => {
+                  if (p.img) {
+                    setSelfie(p.img);
+                    setLiveScore(result.livenessScore);
+                    setFaceScore(result.faceMatchScore);
+                  }
+                  return { ...p, score: result.livenessScore, running: false };
+                });
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Gagal menganalisis selfie');
+                setLiveState(p => ({ ...p, running: false }));
+              }
+            })();
           }, 300);
           return { ...p, done: nd, ch: p.ch + 1 };
         }
@@ -358,7 +375,7 @@ export default function EKYCPage() {
     }, CHALLENGES[lCh].dur);
     timerRef.current = t;
     return () => clearTimeout(t);
-  }, [lRunning, lCh]);
+  }, [lRunning, lCh, icFront]);
 
   const startLive = () => {
     if (!lImg) { toast.error('Sila tangkap gambar selfie terlebih dahulu'); return; }

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthorizationError, requireRole } from '@/lib/auth';
 import { z } from 'zod';
+import { db } from '@/lib/db';
 
 const sendMessageSchema = z.object({
   to: z.string().min(1, 'Nombor penerima diperlukan'),
   message: z.string().min(1, 'Mesej diperlukan').max(1000, 'Mesej terlalu panjang'),
   type: z.enum(['text', 'document', 'template', 'image']).default('text'),
+  donorId: z.string().optional(),
+  templateId: z.string().optional(),
+  templateVariables: z.record(z.string()).optional(),
 });
 
 // ── Message Templates ───────────────────────────────────────────────────────
@@ -117,11 +121,7 @@ export async function POST(request: NextRequest) {
   try {
     await requireRole(request, ['developer']);
     const body = await request.json();
-    const { to, message, type } = sendMessageSchema.parse(body);
-
-    // Simulate WhatsApp message sending
-    // In production, this would integrate with WhatsApp Business API
-    const messageId = `WA-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const { to, message, type, donorId, templateId, templateVariables } = sendMessageSchema.parse(body);
 
     // Normalize phone number
     const normalizedTo = to.replace(/\D/g, '');
@@ -131,22 +131,87 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const formattedTo = normalizedTo.startsWith('6') ? normalizedTo : `6${normalizedTo}`;
 
-    // Simulate processing
+    // Resolve donor if donorId is provided, otherwise try to match by phone
+    let resolvedDonorId = donorId || null;
+    if (!resolvedDonorId) {
+      const donorByPhone = await db.donor.findFirst({
+        where: { phone: { contains: normalizedTo.slice(-10) }, deletedAt: null },
+        select: { id: true },
+      });
+      resolvedDonorId = donorByPhone?.id || null;
+    }
+
+    // If donorId was provided, verify donor exists
+    if (donorId) {
+      const donor = await db.donor.findFirst({
+        where: { id: donorId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!donor) {
+        return NextResponse.json(
+          { success: false, error: 'Penderma tidak dijumpai' },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Build subject line from template or message
+    let subject = 'Mesej WhatsApp';
+    if (templateId) {
+      const template = messageTemplates.find((t) => t.id === templateId);
+      if (template) {
+        subject = template.name;
+      }
+    }
+
+    // Create a real DonorCommunication record to log this WhatsApp message
+    // Only create if we have a valid donorId (foreign key constraint requires it)
+    let communicationId: string | null = null;
+    let sentAt = new Date();
+
+    if (resolvedDonorId) {
+      const communication = await db.donorCommunication.create({
+        data: {
+          donorId: resolvedDonorId,
+          type: 'whatsapp',
+          subject,
+          content: message,
+          status: 'sent',
+          sentAt,
+        },
+      });
+      communicationId = communication.id;
+      sentAt = communication.sentAt ?? sentAt;
+    }
+
+    // If no donor was matched, log via audit trail instead
+    if (!resolvedDonorId) {
+      await db.auditLog.create({
+        data: {
+          action: 'WHATSAPP_MESSAGE_SENT',
+          entity: 'WhatsAppIntegration',
+          details: JSON.stringify({ to: formattedTo, type, subject, messageLength: message.length, templateId: templateId || null }),
+        },
+      });
+      communicationId = `WA-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    }
+
     const status = type === 'template' ? 'DIPROSSES' : 'DIHANTAR';
 
     return NextResponse.json({
       success: true,
       data: {
         success: true,
-        messageId,
-        to: normalizedTo.startsWith('6') ? normalizedTo : `6${normalizedTo}`,
+        messageId: communicationId,
+        to: formattedTo,
         message,
         type,
         status,
-        sentAt: new Date().toISOString(),
-        deliveryEstimate: '5-10 saat',
-        notes: 'Mesej dihantar melalui WhatsApp Business API (simulasi)',
+        sentAt: sentAt.toISOString(),
+        donorId: resolvedDonorId,
+        communicationId,
       },
     });
   } catch (error) {

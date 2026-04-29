@@ -1,6 +1,7 @@
 export type UserRole = 'staff' | 'admin' | 'developer'
 
 export type SessionPayload = {
+  userId: string
   role: UserRole
   issuedAt: number
   expiresAt: number
@@ -63,7 +64,7 @@ async function sign(secret: string, value: string) {
 
 function normalizeRole(role: string | undefined | null): UserRole {
   if (role === 'staff' || role === 'admin' || role === 'developer') return role
-  return 'developer'
+  return 'staff'
 }
 
 export function getSessionSecret() {
@@ -78,12 +79,13 @@ export function getDefaultRole(): UserRole {
   return normalizeRole(process.env.PUSPA_OPERATOR_ROLE)
 }
 
-export async function createSessionToken(role: UserRole) {
+export async function createSessionToken(role: UserRole, userId: string) {
   const secret = getSessionSecret()
   if (!secret) throw new Error('Missing session secret')
 
   const now = Date.now()
   const payload: SessionPayload = {
+    userId,
     role,
     issuedAt: now,
     expiresAt: now + SESSION_DURATION_MS,
@@ -109,9 +111,10 @@ export async function verifySessionToken(token: string | undefined | null): Prom
 
   try {
     const payload = JSON.parse(base64UrlDecode(payloadEncoded)) as SessionPayload
-    if (!payload?.role || typeof payload.expiresAt !== 'number') return null
+    if (!payload?.role || !payload?.userId || typeof payload.expiresAt !== 'number') return null
     if (payload.expiresAt < Date.now()) return null
     return {
+      userId: payload.userId,
       role: normalizeRole(payload.role),
       issuedAt: payload.issuedAt,
       expiresAt: payload.expiresAt,

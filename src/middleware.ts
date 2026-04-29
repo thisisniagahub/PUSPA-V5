@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifySessionToken } from '@/lib/puspa-auth'
 
 const PUBLIC_API_PATHS = new Set([
   '/api/v1/auth/supabase/login',
@@ -23,12 +24,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check for session cookie
+  // Check for session cookie and verify token
   const sessionCookie = request.cookies.get('puspa_session')?.value
 
-  // If has session, allow through
   if (sessionCookie) {
-    return NextResponse.next()
+    const session = await verifySessionToken(sessionCookie)
+    if (session) {
+      return NextResponse.next()
+    }
   }
 
   // Unauthenticated API access — return 401

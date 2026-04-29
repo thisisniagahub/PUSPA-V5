@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, verifyPassword } from '@/lib/password'
 import { UserRole } from '@prisma/client'
+import { requireRole } from '@/lib/auth'
 
 // GET /api/v1/users — List all users
 export async function GET(req: NextRequest) {
   try {
+    await requireRole(req, ['admin', 'developer'])
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '50')
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
 // POST /api/v1/users — Create new user
 export async function POST(req: NextRequest) {
   try {
+    await requireRole(req, ['admin', 'developer'])
     const body = await req.json()
     const { name, email, password, role, phone } = body
 
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
 // PUT /api/v1/users — Update user
 export async function PUT(req: NextRequest) {
   try {
+    await requireRole(req, ['admin', 'developer'])
     const body = await req.json()
     const { id, name, email, role, phone, isActive, currentPassword, newPassword } = body
 
@@ -153,6 +157,7 @@ export async function PUT(req: NextRequest) {
 // DELETE /api/v1/users — Deactivate user
 export async function DELETE(req: NextRequest) {
   try {
+    await requireRole(req, ['admin', 'developer'])
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 

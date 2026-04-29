@@ -24,11 +24,10 @@ export async function createClient() {
     }
   }
 
-  // Find user by role - for now, find first active user with matching role
-  const user = await db.user.findFirst({
+  // Find user by userId from session
+  const user = await db.user.findUnique({
     where: {
-      role: session.role,
-      isActive: true,
+      id: session.userId,
     },
   })
 
@@ -59,14 +58,13 @@ export async function getLocalAuthUser(): Promise<LocalAuthResult | null> {
 
   if (!session) return null
 
-  const user = await db.user.findFirst({
+  const user = await db.user.findUnique({
     where: {
-      role: session.role,
-      isActive: true,
+      id: session.userId,
     },
   })
 
-  if (!user) return null
+  if (!user || !user.isActive) return null
 
   return {
     id: user.id,

@@ -50,23 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (meData.success && meData.data?.user) {
               setUser(meData.data.user)
             } else {
-              // Create a basic user from session data
-              setUser({
-                id: 'session',
-                email: 'admin@puspa.org.my',
-                name: data.data.role === 'developer' ? 'Pembangun PUSPA' : data.data.role === 'admin' ? 'Pentadbir PUSPA' : 'Kakitangan PUSPA',
-                role: data.data.role,
-                supabaseId: 'session',
-              })
+              // Auth failure - redirect to login
+              setUser(null)
             }
           } else {
-            setUser({
-              id: 'session',
-              email: 'admin@puspa.org.my',
-              name: data.data.role === 'developer' ? 'Pembangun PUSPA' : data.data.role === 'admin' ? 'Pentadbir PUSPA' : 'Kakitangan PUSPA',
-              role: data.data.role,
-              supabaseId: 'session',
-            })
+            // Auth failure - redirect to login
+            setUser(null)
           }
         } else {
           setUser(null)

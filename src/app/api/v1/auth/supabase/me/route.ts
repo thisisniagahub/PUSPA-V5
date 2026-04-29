@@ -17,14 +17,13 @@ export async function GET() {
       )
     }
 
-    const user = await db.user.findFirst({
+    const user = await db.user.findUnique({
       where: {
-        role: session.role,
-        isActive: true,
+        id: session.userId,
       },
     })
 
-    if (!user) {
+    if (!user || !user.isActive) {
       return NextResponse.json(
         { success: false, error: 'Pengguna tidak dijumpai' },
         { status: 401 },

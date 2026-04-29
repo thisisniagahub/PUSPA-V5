@@ -103,14 +103,13 @@ export async function getSupabaseAuthUser(): Promise<SupabaseAuthResult['user'] 
 
     if (!session) return null
 
-    const user = await db.user.findFirst({
+    const user = await db.user.findUnique({
       where: {
-        role: session.role,
-        isActive: true,
+        id: session.userId,
       },
     })
 
-    if (!user) return null
+    if (!user || !user.isActive) return null
 
     return {
       id: user.id,

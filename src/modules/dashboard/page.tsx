@@ -68,11 +68,32 @@ import { PluginSlot } from '@/components/plugins/PluginSlot'
 // ---------------------------------------------------------------------------
 
 function SystemMetrics() {
-  const cpuData = [
-    { time: '10:00', usage: 45 }, { time: '10:05', usage: 52 }, { time: '10:10', usage: 48 },
-    { time: '10:15', usage: 61 }, { time: '10:20', usage: 55 }, { time: '10:25', usage: 42 },
-  ]
-  
+  const [metrics, setMetrics] = useState<{
+    apiResponseTime: number
+    uptime: number
+    uptimeFormatted: string
+    memory: { heapUsedMB: number; heapTotalMB: number; rssMB: number; heapUsagePercent: number }
+    cpu: { cpuPercent: number }
+    memHistory: { time: string; usage: number }[]
+  } | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    async function fetchMetrics() {
+      try {
+        const data = await api.get<any>('/dashboard/system-metrics')
+        if (mounted) setMetrics(data)
+      } catch {
+        // Silently fail — metrics are non-critical
+      }
+    }
+    fetchMetrics()
+    const interval = setInterval(fetchMetrics, 30000) // Refresh every 30s
+    return () => { mounted = false; clearInterval(interval) }
+  }, [])
+
+  const cpuData = metrics?.memHistory || []
+
   return (
     <Card className="border border-white/10 shadow-2xl bg-card backdrop-blur-xl text-white overflow-hidden">
       <CardHeader className="border-b border-white/5 pb-4 bg-white/5">
@@ -88,11 +109,21 @@ function SystemMetrics() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="space-y-1">
             <p className="text-[10px] text-white/40 uppercase font-bold">API Latency</p>
-            <p className="text-xl font-bold text-emerald-400">124ms</p>
+            <p className="text-xl font-bold text-emerald-400">{metrics ? `${metrics.apiResponseTime}ms` : '—'}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] text-white/40 uppercase font-bold">Server Load</p>
-            <p className="text-xl font-bold text-secondary-fixed-dim">1.28%</p>
+            <p className="text-[10px] text-white/40 uppercase font-bold">Heap Usage</p>
+            <p className="text-xl font-bold text-secondary-fixed-dim">{metrics ? `${metrics.memory.heapUsagePercent}%` : '—'}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="space-y-1">
+            <p className="text-[10px] text-white/40 uppercase font-bold">Uptime</p>
+            <p className="text-sm font-bold text-white/70">{metrics?.uptimeFormatted || '—'}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] text-white/40 uppercase font-bold">RSS</p>
+            <p className="text-sm font-bold text-white/70">{metrics ? `${metrics.memory.rssMB}MB` : '—'}</p>
           </div>
         </div>
         <div className="h-[120px] w-full">

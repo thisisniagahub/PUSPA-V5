@@ -33,7 +33,7 @@ function resolveTargetUserId(
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    const session = await requireAuth(request);
     const body = await request.json();
     const validated = biometricSetupSchema.parse(body);
     const userId = resolveTargetUserId(session, validated.userId);
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Biometric Setup ──
+    // Device binding validates the device, so setup always succeeds.
+    // Log the setup in the database for audit trail.
     await db.securityLog.create({
       data: {
         userId,
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
         status: 'success',
         details: JSON.stringify({
           message: 'Pengesahan biometrik berjaya dikonfigurasikan',
+          deviceFingerprint: validated.deviceFingerprint || null,
         }),
       },
     });
@@ -103,10 +106,11 @@ export async function POST(request: NextRequest) {
 }
 
 // ─── Biometric Verification ────────────────────────────────────────
-// Simulates biometric verification (in production, integrates with WebAuthn)
+// Verifies biometric authentication based on device trust records
+// in the database instead of random success/failure.
 
 async function handleBiometricVerify(
-  validated: z.infer<typeof biometricSetupSchema> & { userId: string }
+  validated: z.infer<typeof biometricSetupSchema> & { userId: string; ipAddress?: string; userAgent?: string }
 ) {
   // Check for recent failed attempts (rate limiting)
   const recentFailures = await db.securityLog.count({
@@ -144,10 +148,40 @@ async function handleBiometricVerify(
     );
   }
 
-  // Simulate biometric verification with 90% success rate
-  // In production, this would call WebAuthn API
-  const isSuccess = Math.random() > 0.1;
-  const status = isSuccess ? 'success' : 'failed';
+  // Verification logic: check if this device fingerprint has been previously
+  // set up (registered) for biometric authentication. If the device was
+  // registered during setup, verification succeeds.
+  let isTrustedDevice = false;
+
+  if (validated.deviceFingerprint) {
+    // Look for a successful biometric_setup with this device fingerprint
+    const setupRecord = await db.securityLog.findFirst({
+      where: {
+        userId: validated.userId,
+        action: 'biometric_setup',
+        deviceFingerprint: validated.deviceFingerprint,
+        status: 'success',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    isTrustedDevice = !!setupRecord;
+  } else {
+    // If no device fingerprint provided, check if the user has any
+    // successful biometric setup at all (backwards compatibility)
+    const anySetupRecord = await db.securityLog.findFirst({
+      where: {
+        userId: validated.userId,
+        action: 'biometric_setup',
+        status: 'success',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    isTrustedDevice = !!anySetupRecord;
+  }
+
+  const status = isTrustedDevice ? 'success' : 'failed';
 
   await db.securityLog.create({
     data: {
@@ -159,14 +193,16 @@ async function handleBiometricVerify(
       userAgent: validated.userAgent || null,
       status,
       details: JSON.stringify({
-        message: isSuccess
-          ? 'Pengesahan biometrik berjaya'
-          : 'Pengesahan biometrik gagal. Sila cuba lagi.',
+        message: isTrustedDevice
+          ? 'Pengesahan biometrik berjaya — peranti dipercayai'
+          : 'Pengesahan biometrik gagal — peranti tidak berdaftar',
+        deviceFingerprint: validated.deviceFingerprint || null,
+        isTrustedDevice,
       }),
     },
   });
 
-  if (isSuccess) {
+  if (isTrustedDevice) {
     return NextResponse.json({
       success: true,
       message: 'Pengesahan biometrik berjaya',
@@ -176,7 +212,7 @@ async function handleBiometricVerify(
   return NextResponse.json(
     {
       success: false,
-      error: 'Pengesahan biometrik gagal. Sila cuba lagi.',
+      error: 'Pengesahan biometrik gagal. Peranti ini tidak berdaftar untuk pengesahan biometrik.',
     },
     { status: 401 }
   );

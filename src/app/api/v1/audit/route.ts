@@ -16,7 +16,7 @@ const querySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(undefined, ['admin', 'developer'])
+    await requireRole(request, ['admin', 'developer'])
     const searchParams = request.nextUrl.searchParams;
     const parsed = querySchema.safeParse(Object.fromEntries(searchParams.entries()));
 

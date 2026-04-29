@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthorizationError, requireAuth } from '@/lib/auth';
+import { AuthorizationError, requireAuth, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 
@@ -41,7 +41,7 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth(request);
+    await requireRole(request, ['admin', 'developer']);
     const body = await request.json();
     const validated = boardMemberCreateSchema.parse(body);
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await requireAuth(request);
+    await requireRole(request, ['admin', 'developer']);
     const body = await request.json();
     const { id, ...updateData } = body;
 
@@ -135,7 +135,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAuth(request);
+    await requireRole(request, ['admin', 'developer']);
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
