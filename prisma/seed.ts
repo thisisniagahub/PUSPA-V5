@@ -999,7 +999,11 @@ async function main() {
 
   const cases = []
   for (const c of casesData) {
-    cases.push(await db.case.create({ data: c }))
+    cases.push(await db.case.upsert({
+      where: { caseNumber: c.caseNumber },
+      update: c,
+      create: c,
+    }))
   }
   console.log(`✅ Cases created: ${cases.length} records`)
 
@@ -1395,7 +1399,11 @@ async function main() {
 
   const donations = []
   for (const d of donationsData) {
-    donations.push(await db.donation.create({ data: d }))
+    donations.push(await db.donation.upsert({
+      where: { donationNumber: d.donationNumber },
+      update: d,
+      create: d,
+    }))
   }
 
   const totalDonations = donations

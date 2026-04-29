@@ -318,21 +318,23 @@ const STAT_CATEGORIES = [
   },
 ];
 
-const PROGRAMMES = [
-  { id: 'prog-001', name: 'Program Zakat Pendapatan 2025' },
-  { id: 'prog-002', name: 'Tabung Kecemasan Keluarga' },
-  { id: 'prog-003', name: 'Skim Bantuan Pendidikan' },
-  { id: 'prog-004', name: 'Program Wakaf Produktif' },
-  { id: 'prog-005', name: 'Bantuan Perubatan PUSPA' },
-];
+// Dropdown option types (fetched from API)
+interface ProgrammeOption {
+  id: string;
+  name: string;
+  category?: string | null;
+}
 
-const MEMBERS = [
-  { id: 'mem-001', name: 'Ahmad bin Hassan' },
-  { id: 'mem-002', name: 'Siti Aminah binti Omar' },
-  { id: 'mem-003', name: 'Muhammad Ridzuan' },
-  { id: 'mem-004', name: 'Nurul Izzah binti Ismail' },
-  { id: 'mem-005', name: 'Ibrahim bin Mahmood' },
-];
+interface MemberOption {
+  id: string;
+  name: string;
+  memberNumber?: string;
+  ic?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  monthlyIncome?: number | null;
+  householdSize?: number | null;
+}
 
 const ITEMS_PER_PAGE = 8;
 
@@ -797,11 +799,15 @@ function CaseFormDialog({
   onOpenChange,
   editingCase,
   onCaseSaved,
+  programmes,
+  members,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingCase: CaseData | null;
   onCaseSaved: () => void;
+  programmes: ProgrammeOption[];
+  members: MemberOption[];
 }) {
   const isEditing = !!editingCase;
   const { toast } = useToast();
@@ -1101,11 +1107,17 @@ function CaseFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {PROGRAMMES.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
+                          {programmes.length === 0 ? (
+                            <SelectItem value="_none" disabled>
+                              Tiada program tersedia
                             </SelectItem>
-                          ))}
+                          ) : (
+                            programmes.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -1128,11 +1140,17 @@ function CaseFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {MEMBERS.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.name}
+                          {members.length === 0 ? (
+                            <SelectItem value="_none" disabled>
+                              Tiada ahli tersedia
                             </SelectItem>
-                          ))}
+                          ) : (
+                            members.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.memberNumber ? `${m.name} (${m.memberNumber})` : m.name}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -1211,6 +1229,8 @@ function CaseDetailSheet({
   caseData,
   onStatusChange,
   onAddNote,
+  programmes,
+  members,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1221,6 +1241,8 @@ function CaseDetailSheet({
     type: NoteType,
     content: string
   ) => void;
+  programmes: ProgrammeOption[];
+  members: MemberOption[];
 }) {
   const [newNoteType, setNewNoteType] = useState<NoteType>('note');
   const [newNoteContent, setNewNoteContent] = useState('');
@@ -1228,10 +1250,10 @@ function CaseDetailSheet({
   const [selectedNextStatus, setSelectedNextStatus] = useState<Status | null>(null);
 
   const programme = caseData
-    ? PROGRAMMES.find((p) => p.id === caseData.programmeId) ?? null
+    ? programmes.find((p) => p.id === caseData.programmeId) ?? null
     : null;
   const member = caseData
-    ? MEMBERS.find((m) => m.id === caseData.memberId) ?? null
+    ? members.find((m) => m.id === caseData.memberId) ?? null
     : null;
 
   // Compute intelligence outputs unconditionally to keep React Hooks order stable.
@@ -1244,8 +1266,8 @@ function CaseDetailSheet({
     [caseData, member, programme],
   );
   const riskFlags = useMemo(
-    () => (caseData ? computeRiskFlags(caseData, member, MEMBERS) : []),
-    [caseData, member],
+    () => (caseData ? computeRiskFlags(caseData, member, members) : []),
+    [caseData, member, members],
   );
   const beneficiary360 = useMemo(
     () => (caseData && member
@@ -1743,6 +1765,8 @@ export default function CasesPage() {
   const [editingCase, setEditingCase] = useState<CaseData | null>(null);
   const [detailCase, setDetailCase] = useState<CaseData | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [programmes, setProgrammes] = useState<ProgrammeOption[]>([]);
+  const [members, setMembers] = useState<MemberOption[]>([]);
   const { toast } = useToast();
 
   // Fetch cases from API
@@ -1762,9 +1786,24 @@ export default function CasesPage() {
     }
   }, [toast]);
 
+  // Fetch programmes and members for dropdowns
+  const fetchDropdownOptions = useCallback(async () => {
+    try {
+      const [programmesData, membersData] = await Promise.all([
+        api.get<ProgrammeOption[]>('/programmes'),
+        api.get<MemberOption[]>('/members', { pageSize: 100 }),
+      ]);
+      setProgrammes(Array.isArray(programmesData) ? programmesData : []);
+      setMembers(Array.isArray(membersData) ? membersData : []);
+    } catch {
+      // Silently fail — dropdowns will just be empty
+    }
+  }, []);
+
   useEffect(() => {
     fetchCases();
-  }, [fetchCases]);
+    fetchDropdownOptions();
+  }, [fetchCases, fetchDropdownOptions]);
 
   // Filter cases
   const filteredCases = useMemo(() => {
@@ -1997,6 +2036,8 @@ export default function CasesPage() {
         onOpenChange={handleDialogClose}
         editingCase={editingCase}
         onCaseSaved={fetchCases}
+        programmes={programmes}
+        members={members}
       />
 
       {/* Detail Sheet */}
@@ -2006,6 +2047,8 @@ export default function CasesPage() {
         caseData={detailCase}
         onStatusChange={handleStatusUpdate}
         onAddNote={handleAddNote}
+        programmes={programmes}
+        members={members}
       />
     </div>
   );

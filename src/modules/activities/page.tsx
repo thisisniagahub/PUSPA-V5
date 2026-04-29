@@ -5,7 +5,7 @@ import { io, Socket } from "socket.io-client";
 // NOTE: Socket.IO only works in local dev (mini-services on port 3003).
 // On Vercel serverless, WebSocket is unavailable — features degrade gracefully
 // (Live badge shows "Disconnected", real-time sync disabled).
-import { updateActivityStatus } from "@/app/actions/activities";
+import { api } from "@/lib/api";
 import {
   DndContext,
   closestCenter,
@@ -71,12 +71,17 @@ import {
   MapPin,
   Users,
   FileText,
+  Loader2,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ActivityStatus = "dirancang" | "dalam_proses" | "selesai" | "dibatalkan";
 type ActivityType = "tugas" | "acara" | "mesyuarat" | "kerja_lapangan";
+
+// API-side types
+type ApiActivityStatus = "planned" | "in_progress" | "completed" | "cancelled";
+type ApiActivityType = "event" | "meeting" | "training" | "outreach" | "fundraiser" | "volunteer" | "audit" | "visit" | "other";
 
 interface Activity {
   id: string;
@@ -87,9 +92,15 @@ interface Activity {
   date: string | null;
   endDate: string | null;
   location: string | null;
+  programmeId: string | null;
   programme: string | null;
   assignees: string[];
   notes: string;
+}
+
+interface ProgrammeOption {
+  id: string;
+  name: string;
 }
 
 interface ColumnDef {
@@ -99,6 +110,78 @@ interface ColumnDef {
   headerClass: string;
   bgClass: string;
   borderClass: string;
+}
+
+// ─── Mapping Functions ────────────────────────────────────────────────────────
+
+const UI_TO_API_STATUS: Record<ActivityStatus, ApiActivityStatus> = {
+  dirancang: "planned",
+  dalam_proses: "in_progress",
+  selesai: "completed",
+  dibatalkan: "cancelled",
+};
+
+const API_TO_UI_STATUS: Record<ApiActivityStatus, ActivityStatus> = {
+  planned: "dirancang",
+  in_progress: "dalam_proses",
+  completed: "selesai",
+  cancelled: "dibatalkan",
+};
+
+const UI_TO_API_TYPE: Record<ActivityType, ApiActivityType> = {
+  tugas: "other",
+  acara: "event",
+  mesyuarat: "meeting",
+  kerja_lapangan: "outreach",
+};
+
+const API_TO_UI_TYPE: Record<string, ActivityType> = {
+  event: "acara",
+  meeting: "mesyuarat",
+  training: "tugas",
+  outreach: "kerja_lapangan",
+  fundraiser: "acara",
+  volunteer: "kerja_lapangan",
+  audit: "tugas",
+  visit: "kerja_lapangan",
+  other: "tugas",
+};
+
+// Parse assignees from API (JSON string or null) to string array
+function parseAssignees(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+// Map an API activity object to the UI Activity shape
+function mapApiToUiActivity(raw: Record<string, unknown>): Activity {
+  const apiStatus = (raw.status as ApiActivityStatus) || "planned";
+  const apiType = (raw.type as string) || "other";
+  return {
+    id: raw.id as string,
+    title: (raw.title as string) || "",
+    description: (raw.description as string) || "",
+    type: API_TO_UI_TYPE[apiType] || "tugas",
+    status: API_TO_UI_STATUS[apiStatus] || "dirancang",
+    date: raw.date ? String(raw.date) : null,
+    endDate: raw.endDate ? String(raw.endDate) : null,
+    location: (raw.location as string) || null,
+    programmeId: (raw.programmeId as string) || null,
+    programme: (raw.programme && typeof raw.programme === "object")
+      ? (raw.programme as Record<string, unknown>).name as string
+      : null,
+    assignees: parseAssignees(raw.assignees),
+    notes: (raw.notes as string) || "",
+  };
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -174,160 +257,6 @@ const TYPE_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: "kerja_lapangan", label: "Kerja Lapangan" },
 ];
 
-const PROGRAMMES = [
-  "Program Bantuan Raya",
-  "Program Pendidikan",
-  "Program Kesihatan",
-  "Program Keusahawanan",
-  "Program Kebajikan",
-  "Program Dakwah",
-];
-
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-
-const INITIAL_ACTIVITIES: Activity[] = [
-  {
-    id: "1",
-    title: "Sembang Santai dengan Asnaf",
-    description:
-      "Sesi perbincangan santai bersama asnaf untuk mengetahui keperluan dan masalah yang dihadapi mereka.",
-    type: "acara",
-    status: "dirancang",
-    date: "2026-05-15",
-    endDate: null,
-    location: "Pusat Komuniti PUSPA",
-    programme: "Program Kebajikan",
-    assignees: ["Ahmad", "Siti"],
-    notes: "Sediakan minuman dan makanan ringan.",
-  },
-  {
-    id: "2",
-    title: "Agihan Bantuan Raya 2026",
-    description:
-      "Pengagihan duit raya dan barangan keperluan kepada asnaf yang layak di kawasan Gombak.",
-    type: "acara",
-    status: "dalam_proses",
-    date: "2026-04-28",
-    endDate: "2026-04-30",
-    location: "Masjid Al-Ehsan, Gombak",
-    programme: "Program Bantuan Raya",
-    assignees: ["Ustaz Hassan", "Fatimah", "Rizal"],
-    notes: "Senarai asnaf telah disahkan oleh jawatankuasa.",
-  },
-  {
-    id: "3",
-    title: "Mesyuarat Jawatankuasa Bulanan",
-    description:
-      "Mesyuarat bulanan untuk membincangkan kemajuan program dan perancangan masa hadapan.",
-    type: "mesyuarat",
-    status: "dalam_proses",
-    date: "2026-04-25",
-    endDate: null,
-    location: "Bilik Mesyuarat PUSPA",
-    programme: null,
-    assignees: ["Semua AJK"],
-    notes: "Agenda akan diedarkan 3 hari sebelum mesyuarat.",
-  },
-  {
-    id: "4",
-    title: "Lawatan ke Rumah Asnaf di Gombak",
-    description:
-      "Lawatan ke rumah-rumah asnaf untuk menilai keperluan dan memberikan bantuan segera.",
-    type: "kerja_lapangan",
-    status: "selesai",
-    date: "2026-04-20",
-    endDate: "2026-04-20",
-    location: "Taman Sri Gombak",
-    programme: "Program Kebajikan",
-    assignees: ["Ali", "Nurul", "Farid"],
-    notes: "Jumlah rumah yang dilawati: 15 buah.",
-  },
-  {
-    id: "5",
-    title: "Program iftar bersama komuniti",
-    description:
-      "Program berbuka puasa bersama komuniti setempat termasuk asnaf dan penduduk sekitar.",
-    type: "acara",
-    status: "selesai",
-    date: "2026-04-18",
-    endDate: null,
-    location: "Dataran Komuniti Gombak",
-    programme: "Program Dakwah",
-    assignees: ["Jawatankuasa Katering", "Sukarelawan"],
-    notes: "Kira-kira 200 orang hadir. Program berjalan lancar.",
-  },
-  {
-    id: "6",
-    title: "Kelas Tajwid Mingguan",
-    description:
-      "Kelas pembelajaran tajwid Al-Quran untuk kanak-kanak dan remaja di kawasan setempat.",
-    type: "tugas",
-    status: "dirancang",
-    date: "2026-05-03",
-    endDate: null,
-    location: "Surau Al-Hikmah",
-    programme: "Program Pendidikan",
-    assignees: ["Ustazah Maryam"],
-    notes: "Setiap Sabtu, jam 10 pagi hingga 12 tengahari.",
-  },
-  {
-    id: "7",
-    title: "Gotong-royong pembersihan masjid",
-    description:
-      "Aktiviti gotong-royong membersihkan masjid bersama penduduk setempat dan ahli PUSPA.",
-    type: "kerja_lapangan",
-    status: "dibatalkan",
-    date: "2026-04-22",
-    endDate: null,
-    location: "Masjid Jamek Gombak",
-    programme: null,
-    assignees: ["Sukarelawan PUSPA"],
-    notes: "Dibatalkan kerana cuaca buruk. Akan dijadualkan semula.",
-  },
-  {
-    id: "8",
-    title: "Bengkel Keusahawanan",
-    description:
-      "Bengkel latihan keusahawanan untuk asnaf bagi membantu mereka menjana pendapatan sendiri.",
-    type: "acara",
-    status: "dirancang",
-    date: "2026-05-20",
-    endDate: "2026-05-21",
-    location: "Dewan Komuniti PUSPA",
-    programme: "Program Keusahawanan",
-    assignees: ["Encik Kamal", "Puan Aisha"],
-    notes: "Menyediakan bahan bengkel dan senarai peserta.",
-  },
-  {
-    id: "9",
-    title: "Kempen Derma Darah",
-    description:
-      "Menguruskan kempen derma darah bersama Hospital Gombak untuk kebajikan komuniti.",
-    type: "acara",
-    status: "dalam_proses",
-    date: "2026-05-10",
-    endDate: null,
-    location: "Hospital Gombak",
-    programme: "Program Kesihatan",
-    assignees: ["Dr. Lim", "Sister Aminah"],
-    notes: "Target peserta: 100 orang penderma.",
-  },
-  {
-    id: "10",
-    title: "Penyediaan Laporan Tahunan",
-    description:
-      "Menyediakan laporan tahunan aktiviti dan kewangan PUSPA untuk mesyuarat AGM.",
-    type: "tugas",
-    status: "dirancang",
-    date: "2026-06-01",
-    endDate: "2026-06-15",
-    location: null,
-    programme: null,
-    assignees: ["Bendahari", "Setiausaha"],
-    notes: "Mengumpulkan data daripada semua jawatankuasa.",
-  },
-];
-
 // ─── Zod Schema ──────────────────────────────────────────────────────────────
 
 const activitySchema = z.object({
@@ -342,7 +271,7 @@ const activitySchema = z.object({
   date: z.string().optional().default(""),
   endDate: z.string().optional().default(""),
   location: z.string().optional().default(""),
-  programme: z.string().optional().default(""),
+  programmeId: z.string().optional().default(""),
   assignees: z.string().optional().default(""),
   notes: z.string().optional().default(""),
 });
@@ -363,10 +292,6 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return dateStr;
   }
-}
-
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
 
 // ─── Sortable Activity Card ──────────────────────────────────────────────────
@@ -559,6 +484,7 @@ interface ActivityFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activity: Activity | null;
+  programmes: ProgrammeOption[];
   onSave: (data: ActivityFormData, id?: string) => void;
 }
 
@@ -566,6 +492,7 @@ function ActivityFormDialog({
   open,
   onOpenChange,
   activity,
+  programmes,
   onSave,
 }: ActivityFormDialogProps) {
   const isEditing = !!activity;
@@ -580,7 +507,7 @@ function ActivityFormDialog({
       date: activity?.date || "",
       endDate: activity?.endDate || "",
       location: activity?.location || "",
-      programme: activity?.programme || "",
+      programmeId: activity?.programmeId || "",
       assignees: activity?.assignees?.join(", ") || "",
       notes: activity?.notes || "",
     },
@@ -593,7 +520,7 @@ function ActivityFormDialog({
           date: activity.date || "",
           endDate: activity.endDate || "",
           location: activity.location || "",
-          programme: activity.programme || "",
+          programmeId: activity.programmeId || "",
           assignees: activity.assignees.join(", "),
           notes: activity.notes,
         }
@@ -612,7 +539,7 @@ function ActivityFormDialog({
               date: activity.date || "",
               endDate: activity.endDate || "",
               location: activity.location || "",
-              programme: activity.programme || "",
+              programmeId: activity.programmeId || "",
               assignees: activity.assignees.join(", "),
               notes: activity.notes,
             }
@@ -624,7 +551,7 @@ function ActivityFormDialog({
               date: "",
               endDate: "",
               location: "",
-              programme: "",
+              programmeId: "",
               assignees: "",
               notes: "",
             }
@@ -645,9 +572,9 @@ function ActivityFormDialog({
     control: form.control,
     name: "status",
   });
-  const programmeValue = useWatch({
+  const programmeIdValue = useWatch({
     control: form.control,
-    name: "programme",
+    name: "programmeId",
   });
 
   return (
@@ -771,16 +698,16 @@ function ActivityFormDialog({
           <div className="grid gap-2">
             <Label>Program</Label>
             <Select
-              value={programmeValue}
-              onValueChange={(val) => form.setValue("programme", val)}
+              value={programmeIdValue}
+              onValueChange={(val) => form.setValue("programmeId", val)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Pilih program (pilihan)" />
               </SelectTrigger>
               <SelectContent>
-                {PROGRAMMES.map((prog) => (
-                  <SelectItem key={prog} value={prog}>
-                    {prog}
+                {programmes.map((prog) => (
+                  <SelectItem key={prog.id} value={prog.id}>
+                    {prog.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -876,7 +803,9 @@ function DeleteConfirmDialog({
 // ─── Main Page Component ─────────────────────────────────────────────────────
 
 export default function ActivitiesKanbanPage() {
-  const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [programmes, setProgrammes] = useState<ProgrammeOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [optimisticActivities, addOptimisticActivity] = useOptimistic<Activity[], { id: string, status: ActivityStatus }>(
     activities,
     (state, { id, status }) => state.map(a => a.id === id ? { ...a, status } : a)
@@ -895,6 +824,40 @@ export default function ActivitiesKanbanPage() {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Fetch activities from the API
+  const fetchActivities = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await api.get<Record<string, unknown>[]>("/activities");
+      const mapped = data.map(mapApiToUiActivity);
+      setActivities(mapped);
+    } catch (error) {
+      console.error("Failed to fetch activities:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Fetch programmes from the API
+  const fetchProgrammes = useCallback(async () => {
+    try {
+      const data = await api.get<Record<string, unknown>[]>("/programmes");
+      const mapped: ProgrammeOption[] = data.map((p) => ({
+        id: p.id as string,
+        name: p.name as string,
+      }));
+      setProgrammes(mapped);
+    } catch (error) {
+      console.error("Failed to fetch programmes:", error);
+    }
+  }, []);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchActivities();
+    fetchProgrammes();
+  }, [fetchActivities, fetchProgrammes]);
+
   useEffect(() => {
     // Only attempt WebSocket in development (local server on port 3003)
     // On Vercel, this gracefully fails and real-time sync is disabled
@@ -910,15 +873,17 @@ export default function ActivitiesKanbanPage() {
       socket.on('connect', () => setIsConnected(true));
       socket.on('disconnect', () => setIsConnected(false));
 
-      socket.on('activity-action', (data: { action: string; activity?: Activity; id?: string }) => {
+      socket.on('activity-action', (data: { action: string; activity?: Record<string, unknown>; id?: string }) => {
         if (data.action === 'add' && data.activity) {
+          const mapped = mapApiToUiActivity(data.activity);
           setActivities((prev) => {
-            if (prev.find(a => a.id === data.activity!.id)) return prev;
-            return [...prev, data.activity!];
+            if (prev.find(a => a.id === mapped.id)) return prev;
+            return [...prev, mapped];
           });
         } else if (data.action === 'update' && data.activity) {
+          const mapped = mapApiToUiActivity(data.activity);
           setActivities((prev) =>
-            prev.map((a) => (a.id === data.activity!.id ? data.activity! : a))
+            prev.map((a) => (a.id === mapped.id ? mapped : a))
           );
         } else if (data.action === 'delete' && data.id) {
           setActivities((prev) => prev.filter((a) => a.id !== data.id));
@@ -931,7 +896,7 @@ export default function ActivitiesKanbanPage() {
     }
   }, []);
 
-  const emitAction = useCallback((action: 'add' | 'update' | 'delete', payload: { activity?: Activity, id?: string }) => {
+  const emitAction = useCallback((action: 'add' | 'update' | 'delete', payload: { activity?: Record<string, unknown>, id?: string }) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('activity-action', { action, ...payload });
     }
@@ -1004,35 +969,40 @@ export default function ActivitiesKanbanPage() {
         }
       }
 
-      const activeActivity = optimisticActivities.find((a) => a.id === active.id);
+      const draggedActivity = optimisticActivities.find((a) => a.id === active.id);
 
-      if (newStatus && activeActivity && activeActivity.status !== newStatus) {
+      if (newStatus && draggedActivity && draggedActivity.status !== newStatus) {
         const statusToUpdate = newStatus;
         const activityId = active.id as string;
+        const apiStatus = UI_TO_API_STATUS[statusToUpdate];
 
         startTransition(async () => {
           // Optimistic update for instant UI feedback
           addOptimisticActivity({ id: activityId, status: statusToUpdate });
 
-          // Call Server Action
-          const res = await updateActivityStatus(activityId, statusToUpdate);
+          try {
+            // Call API to update status
+            await api.put<Record<string, unknown>>("/activities", {
+              id: activityId,
+              status: apiStatus,
+            });
 
-          if (res.success) {
-            // Update local state if successful
+            // Update local state with the new status
             setActivities((prev) =>
               prev.map((a) =>
                 a.id === activityId ? { ...a, status: statusToUpdate } : a
               )
             );
-            emitAction('update', { activity: { ...activeActivity, status: statusToUpdate } });
-          } else {
-            console.error("Failed to update activity status");
-            // If failed, state naturally reverts when transition ends because we didn't update activities
+            emitAction('update', { activity: { ...draggedActivity, status: statusToUpdate } as unknown as Record<string, unknown> });
+          } catch (error) {
+            console.error("Failed to update activity status:", error);
+            // Re-fetch to get the correct state from the server
+            fetchActivities();
           }
         });
       }
     },
-    [optimisticActivities, emitAction, addOptimisticActivity]
+    [optimisticActivities, emitAction, addOptimisticActivity, fetchActivities]
   );
 
   // Open add form
@@ -1057,14 +1027,23 @@ export default function ActivitiesKanbanPage() {
   const handleDeleteConfirm = useCallback(() => {
     if (deletingActivity) {
       const idToDelete = deletingActivity.id;
+
+      // Optimistic removal
       setActivities((prev) =>
         prev.filter((a) => a.id !== idToDelete)
       );
       emitAction('delete', { id: idToDelete });
       setDeleteOpen(false);
       setDeletingActivity(null);
+
+      // Fire-and-forget API call
+      api.delete("/activities", { id: idToDelete }).catch((error) => {
+        console.error("Failed to delete activity:", error);
+        // Re-fetch to restore correct state
+        fetchActivities();
+      });
     }
-  }, [deletingActivity, emitAction]);
+  }, [deletingActivity, emitAction, fetchActivities]);
 
   // Save (add or edit)
   const handleSave = useCallback(
@@ -1076,59 +1055,60 @@ export default function ActivitiesKanbanPage() {
             .filter(Boolean)
         : [];
 
+      const programmeId = data.programmeId || undefined;
+      const programmeName = programmeId
+        ? programmes.find((p) => p.id === programmeId)?.name || null
+        : null;
+
+      // Build API payload with mapped values
+      const apiPayload: Record<string, unknown> = {
+        title: data.title,
+        description: data.description || undefined,
+        type: UI_TO_API_TYPE[data.type],
+        status: UI_TO_API_STATUS[data.status],
+        date: data.date || undefined,
+        endDate: data.endDate || undefined,
+        location: data.location || undefined,
+        programmeId: programmeId || undefined,
+        assignees: assignees.length > 0 ? assignees : undefined,
+        notes: data.notes || undefined,
+      };
+
       if (existingId) {
-        // Update existing
-        let updatedActivity: Activity | null = null;
-        setActivities((prev) =>
-          prev.map((a) => {
-            if (a.id === existingId) {
-              updatedActivity = {
-                ...a,
-                title: data.title,
-                description: data.description || "",
-                type: data.type,
-                status: data.status,
-                date: data.date || null,
-                endDate: data.endDate || null,
-                location: data.location || null,
-                programme: data.programme || null,
-                assignees,
-                notes: data.notes || "",
-              };
-              return updatedActivity;
-            }
-            return a;
+        // Update existing via API
+        api.put<Record<string, unknown>>("/activities", { id: existingId, ...apiPayload })
+          .then((updated) => {
+            const mapped = mapApiToUiActivity(updated);
+            setActivities((prev) =>
+              prev.map((a) => (a.id === mapped.id ? mapped : a))
+            );
+            emitAction('update', { activity: updated });
           })
-        );
-        if (updatedActivity) {
-          emitAction('update', { activity: updatedActivity });
-        }
+          .catch((error) => {
+            console.error("Failed to update activity:", error);
+            fetchActivities();
+          });
       } else {
-        // Add new
-        const newActivity: Activity = {
-          id: generateId(),
-          title: data.title,
-          description: data.description || "",
-          type: data.type,
-          status: data.status,
-          date: data.date || null,
-          endDate: data.endDate || null,
-          location: data.location || null,
-          programme: data.programme || null,
-          assignees,
-          notes: data.notes || "",
-        };
-        setActivities((prev) => [...prev, newActivity]);
-        emitAction('add', { activity: newActivity });
+        // Create new via API
+        api.post<Record<string, unknown>>("/activities", apiPayload)
+          .then((created) => {
+            const mapped = mapApiToUiActivity(created);
+            setActivities((prev) => [...prev, mapped]);
+            emitAction('add', { activity: created });
+          })
+          .catch((error) => {
+            console.error("Failed to create activity:", error);
+            fetchActivities();
+          });
       }
     },
-    [emitAction]
+    [emitAction, fetchActivities, programmes]
   );
 
-  // Refresh
+  // Refresh — re-fetch from API
   const handleRefresh = useCallback(() => {
-    setActivities(INITIAL_ACTIVITIES);
-  }, []);
+    fetchActivities();
+  }, [fetchActivities]);
 
   // Total activity count
   const totalCount = optimisticActivities.length;
@@ -1168,38 +1148,24 @@ export default function ActivitiesKanbanPage() {
 
       {/* Main Content */}
       <main className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 sm:py-6">
-        {/* Desktop: Kanban Board */}
-        <div className="hidden lg:block">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {COLUMNS.map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  column={column}
-                  activities={activitiesByStatus[column.id]}
-                  onEdit={handleEdit}
-                  onDelete={handleDeleteRequest}
-                />
-              ))}
-            </div>
-          </DndContext>
-        </div>
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <span className="ml-3 text-muted-foreground">Memuatkan aktiviti...</span>
+          </div>
+        )}
 
-        {/* Tablet: Horizontal Scroll Kanban */}
-        <div className="hidden md:block lg:hidden">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <ScrollArea className="w-full">
-              <div className="flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
+        {/* Desktop: Kanban Board */}
+        {!isLoading && (
+          <div className="hidden lg:block">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="flex gap-4 overflow-x-auto pb-4">
                 {COLUMNS.map((column) => (
                   <KanbanColumn
                     key={column.id}
@@ -1210,82 +1176,112 @@ export default function ActivitiesKanbanPage() {
                   />
                 ))}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </DndContext>
-        </div>
+            </DndContext>
+          </div>
+        )}
+
+        {/* Tablet: Horizontal Scroll Kanban */}
+        {!isLoading && (
+          <div className="hidden md:block lg:hidden">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <ScrollArea className="w-full">
+                <div className="flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
+                  {COLUMNS.map((column) => (
+                    <KanbanColumn
+                      key={column.id}
+                      column={column}
+                      activities={activitiesByStatus[column.id]}
+                      onEdit={handleEdit}
+                      onDelete={handleDeleteRequest}
+                    />
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </DndContext>
+          </div>
+        )}
 
         {/* Mobile: Vertical Tabs */}
-        <div className="md:hidden">
-          {/* Tab Buttons */}
-          <div className="flex gap-1.5 overflow-x-auto pb-3 mb-4 -mx-1 px-1">
-            {COLUMNS.map((col) => (
-              <button
-                key={col.id}
-                onClick={() => setMobileActiveTab(col.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                  mobileActiveTab === col.id
-                    ? col.headerClass + " shadow-sm"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-              >
-                <span>{col.icon}</span>
-                <span>{col.label}</span>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] px-1 py-0 ml-0.5 ${
+        {!isLoading && (
+          <div className="md:hidden">
+            {/* Tab Buttons */}
+            <div className="flex gap-1.5 overflow-x-auto pb-3 mb-4 -mx-1 px-1">
+              {COLUMNS.map((col) => (
+                <button
+                  key={col.id}
+                  onClick={() => setMobileActiveTab(col.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
                     mobileActiveTab === col.id
-                      ? "bg-white/20 text-white border-white/30"
-                      : ""
+                      ? col.headerClass + " shadow-sm"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }`}
                 >
-                  {activitiesByStatus[col.id].length}
-                </Badge>
-              </button>
-            ))}
-          </div>
-
-          {/* Mobile Column Content */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="flex flex-col gap-2.5">
-              {activitiesByStatus[mobileActiveTab].length === 0 && (
-                <div className="flex items-center justify-center h-32 text-sm text-muted-foreground rounded-lg border border-dashed">
-                  Tiada aktiviti dalam &ldquo;{COLUMNS.find((c) => c.id === mobileActiveTab)?.label}&rdquo;
-                </div>
-              )}
-              {activitiesByStatus[mobileActiveTab].map((activity) => (
-                <SortableActivityCard
-                  key={activity.id}
-                  activity={activity}
-                  onEdit={handleEdit}
-                  onDelete={handleDeleteRequest}
-                />
+                  <span>{col.icon}</span>
+                  <span>{col.label}</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] px-1 py-0 ml-0.5 ${
+                      mobileActiveTab === col.id
+                        ? "bg-white/20 text-white border-white/30"
+                        : ""
+                    }`}
+                  >
+                    {activitiesByStatus[col.id].length}
+                  </Badge>
+                </button>
               ))}
             </div>
-          </DndContext>
-        </div>
+
+            {/* Mobile Column Content */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="flex flex-col gap-2.5">
+                {activitiesByStatus[mobileActiveTab].length === 0 && (
+                  <div className="flex items-center justify-center h-32 text-sm text-muted-foreground rounded-lg border border-dashed">
+                    Tiada aktiviti dalam &ldquo;{COLUMNS.find((c) => c.id === mobileActiveTab)?.label}&rdquo;
+                  </div>
+                )}
+                {activitiesByStatus[mobileActiveTab].map((activity) => (
+                  <SortableActivityCard
+                    key={activity.id}
+                    activity={activity}
+                    onEdit={handleEdit}
+                    onDelete={handleDeleteRequest}
+                  />
+                ))}
+              </div>
+            </DndContext>
+          </div>
+        )}
 
         {/* Summary Stats */}
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {COLUMNS.map((col) => (
-            <div
-              key={col.id}
-              className={`rounded-lg border p-3 text-center ${col.bgClass} ${col.borderClass}`}
-            >
-              <p className="text-2xl font-bold">
-                {activitiesByStatus[col.id].length}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {col.icon} {col.label}
-              </p>
-            </div>
-          ))}
-        </div>
+        {!isLoading && (
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {COLUMNS.map((col) => (
+              <div
+                key={col.id}
+                className={`rounded-lg border p-3 text-center ${col.bgClass} ${col.borderClass}`}
+              >
+                <p className="text-2xl font-bold">
+                  {activitiesByStatus[col.id].length}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {col.icon} {col.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Activity Form Dialog */}
@@ -1293,6 +1289,7 @@ export default function ActivitiesKanbanPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         activity={editingActivity}
+        programmes={programmes}
         onSave={handleSave}
       />
 
