@@ -44,8 +44,11 @@ const DOCUMENT_MIME_ALLOWLIST = new Set([
   'text/plain',
 ])
 
-// Local storage directory
+// Local storage directory (used in development)
 const UPLOAD_ROOT = join(process.cwd(), 'uploads')
+
+// Detect if Vercel Blob should be used
+const useVercelBlob = !!process.env.BLOB_READ_WRITE_TOKEN
 
 export function isUploadBucket(value: string): value is UploadBucket {
   return value === 'documents' || value === 'ekyc'
@@ -95,8 +98,8 @@ function sanitizeStem(value: string) {
 }
 
 /**
- * Store a file upload in local filesystem storage.
- * Replaces Supabase Storage for local SQLite-based deployment.
+ * Store a file upload.
+ * Uses Vercel Blob when BLOB_READ_WRITE_TOKEN is set, otherwise falls back to local filesystem.
  */
 export async function storeUpload(options: {
   bucket: UploadBucket
@@ -118,11 +121,28 @@ export async function storeUpload(options: {
   const storedName = `${Date.now()}-${randomUUID().slice(0, 8)}${scopeSuffix}${extension}`
   const storagePath = `${year}/${month}/${storedName}`
 
-  // Ensure directory exists
+  // Vercel Blob storage (production)
+  if (useVercelBlob) {
+    const { put } = await import('@vercel/blob')
+    const blobKey = `${bucket}/${storagePath}`
+    const blob = await put(blobKey, buffer, {
+      access: 'public',
+      contentType: mimeType,
+    })
+
+    return {
+      path: `${bucket}/${storagePath}`,
+      url: blob.url,
+      fileName,
+      size: buffer.byteLength,
+      mimeType,
+    }
+  }
+
+  // Local filesystem storage (development)
   const dirPath = join(UPLOAD_ROOT, bucket, year, month)
   await mkdir(dirPath, { recursive: true })
 
-  // Write file to disk
   const fullPath = join(UPLOAD_ROOT, bucket, storagePath)
   await writeFile(fullPath, buffer)
 
@@ -138,33 +158,80 @@ export async function storeUpload(options: {
 /**
  * Get a URL for a stored file (for downloads).
  * In local storage, files are served via the API route.
+ * In Vercel Blob, files are already publicly accessible.
  */
 export async function getSignedUrl(bucket: UploadBucket, storagePath: string, _expiresIn = 3600) {
+  if (useVercelBlob) {
+    // Vercel Blob URLs are already public — construct the URL from path
+    // The `storeUpload` result already contains the full blob URL in the `url` field.
+    // For lookups from storagePath, we return a placeholder; callers should use the stored URL.
+    const { head } = await import('@vercel/blob')
+    const blobKey = `${bucket}/${storagePath}`
+    const blob = await head(blobKey)
+    return blob?.url ?? `/api/v1/upload/${bucket}/${storagePath}`
+  }
+
   // In local storage, we just return the API URL — no signed URLs needed
   return `/api/v1/upload/${bucket}/${storagePath}`
 }
 
 /**
- * Download a stored file from local filesystem.
+ * Download a stored file.
+ * Uses Vercel Blob when BLOB_READ_WRITE_TOKEN is set, otherwise reads from local filesystem.
  */
 export async function readStoredUpload(bucket: UploadBucket, storagePath: string) {
+  const fileName = storagePath.split('/').pop() || 'file'
+  const mimeType = inferMimeType(fileName)
+
+  if (useVercelBlob) {
+    const { head } = await import('@vercel/blob')
+    const blobKey = `${bucket}/${storagePath}`
+    const blob = await head(blobKey)
+
+    if (!blob) {
+      throw new Error(`Fail tidak dijumpai: ${storagePath}`)
+    }
+
+    // Fetch the blob content
+    const response = await fetch(blob.url)
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    return {
+      bucket,
+      storagePath,
+      buffer,
+      fileName,
+      mimeType,
+    }
+  }
+
+  // Local filesystem
   const fullPath = join(UPLOAD_ROOT, bucket, storagePath)
   const buffer = await readFile(fullPath)
-  const fileName = storagePath.split('/').pop() || 'file'
 
   return {
     bucket,
     storagePath,
     buffer,
     fileName,
-    mimeType: inferMimeType(fileName),
+    mimeType,
   }
 }
 
 /**
- * Delete a stored file from local filesystem.
+ * Delete a stored file.
+ * Uses Vercel Blob when BLOB_READ_WRITE_TOKEN is set, otherwise deletes from local filesystem.
  */
 export async function deleteStoredUpload(bucket: UploadBucket, storagePath: string) {
+  if (useVercelBlob) {
+    const { del } = await import('@vercel/blob')
+    const blobKey = `${bucket}/${storagePath}`
+    await del(blobKey)
+    return
+  }
+
+  // Local filesystem
   const fullPath = join(UPLOAD_ROOT, bucket, storagePath)
   try {
     await unlink(fullPath)
