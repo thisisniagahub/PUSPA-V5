@@ -10,6 +10,7 @@ import type { OpenClawSnapshot } from '@/lib/openclaw'
 
 interface GatewayStatusInfo {
   status: string
+  connected?: boolean
   version?: string
   uptime?: number
   sessions?: number

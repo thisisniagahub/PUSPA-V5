@@ -65,6 +65,7 @@ Return ONLY a JSON object:
     // Run both analyses in parallel
     const [livenessResponse, faceMatchResponse] = await Promise.all([
       zai.chat.completions.createVision({
+        model: 'default',
         messages: [
           {
             role: 'user',
@@ -77,6 +78,7 @@ Return ONLY a JSON object:
         thinking: { type: 'disabled' },
       }),
       zai.chat.completions.createVision({
+        model: 'default',
         messages: [
           {
             role: 'user',

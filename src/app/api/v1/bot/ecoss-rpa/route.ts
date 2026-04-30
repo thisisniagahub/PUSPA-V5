@@ -3,6 +3,20 @@ import { NextRequest } from 'next/server'
 import { requireBotAuth, botAuthErrorResponse } from '@/lib/bot-middleware'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { createWithGeneratedUniqueValue } from '@/lib/sequence'
+
+async function generateWorkItemNumber() {
+  let nextNum = 1
+  const lastWorkItem = await db.workItem.findFirst({
+    orderBy: { workItemNumber: 'desc' },
+    select: { workItemNumber: true },
+  })
+  if (lastWorkItem?.workItemNumber) {
+    const match = lastWorkItem.workItemNumber.match(/WI-(\d+)/)
+    if (match) nextNum = parseInt(match[1], 10) + 1
+  }
+  return `WI-${String(nextNum).padStart(4, '0')}`
+}
 
 const rpaRequestSchema = z.object({
   icNumber: z.string().min(1, 'icNumber is required'),
@@ -35,21 +49,26 @@ export async function POST(req: NextRequest) {
     const { icNumber, memberName, actionType, details, caseId, memberId, priority } = parsed.data
 
     // Create a WorkItem record to track this RPA request
-    const workItem = await db.workItem.create({
-      data: {
-        title: `eCoss RPA: ${actionType} - ${memberName || icNumber}`,
-        project: 'PUSPA',
-        domain: 'ecoss-rpa',
-        sourceChannel: 'bot-api',
-        requestText: `RPA task for IC ${icNumber}${memberName ? ` (${memberName})` : ''}: ${actionType}`,
-        intent: actionType,
-        status: 'queued',
-        priority: priority as string,
-        currentStep: 'submitted',
-        nextAction: 'pending_processing',
-        tags: JSON.stringify({ icNumber, actionType, memberName: memberName || null }),
-        ...(caseId ? {} : {}),
-      },
+    const workItem = await createWithGeneratedUniqueValue({
+      generateValue: generateWorkItemNumber,
+      uniqueFields: ['workItemNumber'],
+      create: (workItemNumber) =>
+        db.workItem.create({
+          data: {
+            workItemNumber,
+            title: `eCoss RPA: ${actionType} - ${memberName || icNumber}`,
+            project: 'PUSPA',
+            domain: 'ecoss-rpa',
+            sourceChannel: 'bot-api',
+            requestText: `RPA task for IC ${icNumber}${memberName ? ` (${memberName})` : ''}: ${actionType}`,
+            intent: actionType,
+            status: 'queued',
+            priority: priority as string,
+            currentStep: 'submitted',
+            nextAction: 'pending_processing',
+            tags: JSON.stringify({ icNumber, actionType, memberName: memberName || null }),
+          },
+        }),
     })
 
     // Create an execution event to record the submission

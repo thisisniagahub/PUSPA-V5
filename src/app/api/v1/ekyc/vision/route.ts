@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
 If any field cannot be read from the image, use an empty string for that field. Be as accurate as possible with the extraction.`
 
     const response = await zai.chat.completions.createVision({
+      model: 'default',
       messages: [
         {
           role: 'user',
