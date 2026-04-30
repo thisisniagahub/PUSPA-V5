@@ -9,7 +9,7 @@ const sendMessageSchema = z.object({
   type: z.enum(['text', 'document', 'template', 'image']).default('text'),
   donorId: z.string().optional(),
   templateId: z.string().optional(),
-  templateVariables: z.record(z.string()).optional(),
+  templateVariables: z.record(z.string(), z.string()).optional(),
 });
 
 // ── Message Templates ───────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ const rpaRequestSchema = z.object({
   icNumber: z.string().min(1, 'icNumber is required'),
   memberName: z.string().optional(),
   actionType: z.string().min(1, 'actionType is required'),
-  details: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
   caseId: z.string().optional(),
   memberId: z.string().optional(),
   priority: z.enum(['urgent', 'high', 'normal', 'low']).default('normal'),
