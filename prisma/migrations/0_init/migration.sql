@@ -1,122 +1,5 @@
-warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
-For more information, see: https://pris.ly/prisma-config
-
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
-
--- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('staff', 'admin', 'developer');
-
--- CreateEnum
-CREATE TYPE "MemberStatus" AS ENUM ('active', 'inactive', 'blacklisted');
-
--- CreateEnum
-CREATE TYPE "MaritalStatus" AS ENUM ('single', 'married', 'divorced', 'widowed');
-
--- CreateEnum
-CREATE TYPE "ProgrammeCategory" AS ENUM ('food_aid', 'education', 'skills_training', 'healthcare', 'financial_assistance', 'community', 'emergency_relief', 'dawah');
-
--- CreateEnum
-CREATE TYPE "ProgrammeStatus" AS ENUM ('planned', 'active', 'completed', 'suspended');
-
--- CreateEnum
-CREATE TYPE "CaseStatus" AS ENUM ('draft', 'submitted', 'verifying', 'verified', 'scoring', 'scored', 'approved', 'disbursing', 'disbursed', 'follow_up', 'closed', 'rejected');
-
--- CreateEnum
-CREATE TYPE "CasePriority" AS ENUM ('urgent', 'high', 'normal', 'low');
-
--- CreateEnum
-CREATE TYPE "CaseCategory" AS ENUM ('zakat', 'sedekah', 'wakaf', 'infak', 'government_aid');
-
--- CreateEnum
-CREATE TYPE "DonationStatus" AS ENUM ('pending', 'confirmed', 'failed', 'refunded');
-
--- CreateEnum
-CREATE TYPE "DonationMethod" AS ENUM ('cash', 'bank_transfer', 'online', 'cheque', 'ewallet');
-
--- CreateEnum
-CREATE TYPE "FundType" AS ENUM ('zakat', 'sadaqah', 'waqf', 'infaq', 'donation_general');
-
--- CreateEnum
-CREATE TYPE "ZakatCategory" AS ENUM ('fitrah', 'harta', 'pendapatan', 'perniagaan');
-
--- CreateEnum
-CREATE TYPE "DisbursementStatus" AS ENUM ('pending', 'approved', 'processing', 'disbursed', 'cancelled', 'failed');
-
--- CreateEnum
-CREATE TYPE "ActivityType" AS ENUM ('event', 'meeting', 'training', 'outreach', 'fundraiser', 'volunteer', 'audit', 'visit', 'other');
-
--- CreateEnum
-CREATE TYPE "ActivityStatus" AS ENUM ('planned', 'in_progress', 'completed', 'cancelled');
-
--- CreateEnum
-CREATE TYPE "PartnerType" AS ENUM ('government', 'corporate', 'ngo', 'foundation', 'masjid', 'individual');
-
--- CreateEnum
-CREATE TYPE "VerificationStatus" AS ENUM ('claimed', 'partner_confirmed', 'publicly_verified');
-
--- CreateEnum
-CREATE TYPE "DonorSegment" AS ENUM ('major', 'regular', 'occasional', 'lapsed');
-
--- CreateEnum
-CREATE TYPE "DonorStatus" AS ENUM ('active', 'inactive');
-
--- CreateEnum
-CREATE TYPE "CommunicationType" AS ENUM ('email', 'phone', 'whatsapp');
-
--- CreateEnum
-CREATE TYPE "CommunicationStatus" AS ENUM ('sent', 'draft', 'failed');
-
--- CreateEnum
-CREATE TYPE "VolunteerStatus" AS ENUM ('active', 'inactive', 'blacklisted');
-
--- CreateEnum
-CREATE TYPE "VolunteerAvailability" AS ENUM ('weekday', 'weekend', 'anytime');
-
--- CreateEnum
-CREATE TYPE "DeploymentStatus" AS ENUM ('assigned', 'active', 'completed', 'cancelled');
-
--- CreateEnum
-CREATE TYPE "HourLogStatus" AS ENUM ('pending', 'approved', 'rejected');
-
--- CreateEnum
-CREATE TYPE "EKYCStatus" AS ENUM ('pending', 'verified', 'rejected');
-
--- CreateEnum
-CREATE TYPE "RiskLevel" AS ENUM ('low', 'medium', 'high');
-
--- CreateEnum
-CREATE TYPE "NotificationType" AS ENUM ('info', 'warning', 'error', 'success');
-
--- CreateEnum
-CREATE TYPE "SecurityLogStatus" AS ENUM ('success', 'failed');
-
--- CreateEnum
-CREATE TYPE "BoardMemberRole" AS ENUM ('chairman', 'vice_chairman', 'secretary', 'deputy_secretary', 'treasurer', 'committee_member', 'adviser', 'trustee', 'other');
-
--- CreateEnum
-CREATE TYPE "DocumentCategory" AS ENUM ('pendaftaran', 'tadbir_urus', 'kewangan', 'pematuhan', 'operasi', 'program');
-
--- CreateEnum
-CREATE TYPE "DocumentStatus" AS ENUM ('active', 'archived', 'deleted');
-
--- CreateEnum
-CREATE TYPE "RegistrationType" AS ENUM ('pertubuhan', 'syarikat', 'yayasan');
-
--- CreateEnum
-CREATE TYPE "HermesMessageRole" AS ENUM ('user', 'assistant', 'system');
-
--- CreateEnum
-CREATE TYPE "HermesSkillSource" AS ENUM ('auto', 'manual', 'imported');
-
--- CreateEnum
-CREATE TYPE "HermesMemoryCategory" AS ENUM ('preference', 'fact', 'procedure', 'context', 'general');
-
--- CreateEnum
-CREATE TYPE "HermesMemorySource" AS ENUM ('conversation', 'manual', 'skill');
-
--- CreateEnum
-CREATE TYPE "HermesProvider" AS ENUM ('zai', 'openrouter', 'ollama');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -125,7 +8,7 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "role" "UserRole" NOT NULL DEFAULT 'staff',
+    "role" TEXT NOT NULL DEFAULT 'staff',
     "avatar" TEXT,
     "phone" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -150,12 +33,12 @@ CREATE TABLE "Member" (
     "state" TEXT,
     "postalCode" TEXT,
     "householdSize" INTEGER NOT NULL DEFAULT 1,
-    "monthlyIncome" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "maritalStatus" "MaritalStatus" NOT NULL DEFAULT 'single',
+    "monthlyIncome" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "maritalStatus" TEXT NOT NULL DEFAULT 'single',
     "occupation" TEXT,
     "bankAccount" TEXT,
     "bankName" TEXT,
-    "status" "MemberStatus" NOT NULL DEFAULT 'active',
+    "status" TEXT NOT NULL DEFAULT 'active',
     "notes" TEXT,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -172,7 +55,7 @@ CREATE TABLE "HouseholdMember" (
     "relationship" TEXT NOT NULL,
     "age" INTEGER,
     "occupation" TEXT,
-    "income" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "income" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "isOKU" BOOLEAN NOT NULL DEFAULT false,
     "isStudent" BOOLEAN NOT NULL DEFAULT false,
     "memberId" TEXT NOT NULL,
@@ -187,15 +70,15 @@ CREATE TABLE "Programme" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "category" "ProgrammeCategory" NOT NULL,
-    "status" "ProgrammeStatus" NOT NULL DEFAULT 'active',
+    "category" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'active',
     "startDate" TIMESTAMP(3),
     "endDate" TIMESTAMP(3),
     "location" TEXT,
     "targetBeneficiaries" INTEGER,
     "actualBeneficiaries" INTEGER NOT NULL DEFAULT 0,
-    "budget" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "totalSpent" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "budget" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalSpent" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "partners" TEXT,
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -211,10 +94,10 @@ CREATE TABLE "Case" (
     "caseNumber" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
-    "status" "CaseStatus" NOT NULL DEFAULT 'draft',
-    "priority" "CasePriority" NOT NULL DEFAULT 'normal',
-    "category" "CaseCategory" NOT NULL DEFAULT 'zakat',
-    "amount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'draft',
+    "priority" TEXT NOT NULL DEFAULT 'normal',
+    "category" TEXT NOT NULL DEFAULT 'zakat',
+    "amount" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "applicantName" TEXT,
     "applicantIC" TEXT,
     "applicantPhone" TEXT,
@@ -269,12 +152,12 @@ CREATE TABLE "Donation" (
     "donorIC" TEXT,
     "donorEmail" TEXT,
     "donorPhone" TEXT,
-    "amount" DECIMAL(12,2) NOT NULL,
-    "status" "DonationStatus" NOT NULL DEFAULT 'pending',
-    "method" "DonationMethod" NOT NULL DEFAULT 'cash',
+    "amount" DECIMAL(65,30) NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "method" TEXT NOT NULL DEFAULT 'cash',
     "channel" TEXT,
-    "fundType" "FundType" NOT NULL DEFAULT 'donation_general',
-    "zakatCategory" "ZakatCategory",
+    "fundType" TEXT NOT NULL DEFAULT 'donation_general',
+    "zakatCategory" TEXT,
     "zakatAuthority" TEXT,
     "shariahCompliant" BOOLEAN NOT NULL DEFAULT true,
     "isAnonymous" BOOLEAN NOT NULL DEFAULT false,
@@ -296,9 +179,9 @@ CREATE TABLE "Donation" (
 CREATE TABLE "Disbursement" (
     "id" TEXT NOT NULL,
     "disbursementNumber" TEXT NOT NULL,
-    "amount" DECIMAL(12,2) NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
     "purpose" TEXT NOT NULL,
-    "status" "DisbursementStatus" NOT NULL DEFAULT 'pending',
+    "status" TEXT NOT NULL DEFAULT 'pending',
     "recipientName" TEXT NOT NULL,
     "recipientIC" TEXT,
     "recipientBank" TEXT,
@@ -323,8 +206,8 @@ CREATE TABLE "Activity" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
-    "type" "ActivityType" NOT NULL DEFAULT 'other',
-    "status" "ActivityStatus" NOT NULL DEFAULT 'planned',
+    "type" TEXT NOT NULL DEFAULT 'other',
+    "status" TEXT NOT NULL DEFAULT 'planned',
     "date" TIMESTAMP(3),
     "endDate" TIMESTAMP(3),
     "location" TEXT,
@@ -343,7 +226,7 @@ CREATE TABLE "OrganizationProfile" (
     "id" TEXT NOT NULL,
     "legalName" TEXT NOT NULL,
     "tradeName" TEXT,
-    "registrationType" "RegistrationType" NOT NULL DEFAULT 'pertubuhan',
+    "registrationType" TEXT NOT NULL DEFAULT 'pertubuhan',
     "registrationNumber" TEXT,
     "foundedDate" TIMESTAMP(3),
     "registeredAddress" TEXT,
@@ -373,7 +256,7 @@ CREATE TABLE "BoardMember" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "title" TEXT,
-    "role" "BoardMemberRole" NOT NULL,
+    "role" TEXT NOT NULL,
     "appointmentDate" TIMESTAMP(3),
     "endDate" TIMESTAMP(3),
     "phone" TEXT,
@@ -391,13 +274,13 @@ CREATE TABLE "BoardMember" (
 CREATE TABLE "Partner" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "type" "PartnerType" NOT NULL DEFAULT 'ngo',
+    "type" TEXT NOT NULL DEFAULT 'ngo',
     "relationship" TEXT,
     "contactPerson" TEXT,
     "contactPhone" TEXT,
     "contactEmail" TEXT,
     "address" TEXT,
-    "verifiedStatus" "VerificationStatus" NOT NULL DEFAULT 'claimed',
+    "verifiedStatus" TEXT NOT NULL DEFAULT 'claimed',
     "verificationUrl" TEXT,
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -478,7 +361,7 @@ CREATE TABLE "Notification" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
-    "type" "NotificationType" NOT NULL DEFAULT 'info',
+    "type" TEXT NOT NULL DEFAULT 'info',
     "isRead" BOOLEAN NOT NULL DEFAULT false,
     "userId" TEXT,
     "link" TEXT,
@@ -516,13 +399,13 @@ CREATE TABLE "EKYCVerification" (
     "livenessScore" DOUBLE PRECISION,
     "livenessMethod" TEXT,
     "faceMatchScore" DOUBLE PRECISION,
-    "status" "EKYCStatus" NOT NULL DEFAULT 'pending',
+    "status" TEXT NOT NULL DEFAULT 'pending',
     "verifiedById" TEXT,
     "verifiedAt" TIMESTAMP(3),
     "rejectionReason" TEXT,
     "bnmCompliant" BOOLEAN NOT NULL DEFAULT false,
     "amlaScreening" TEXT,
-    "riskLevel" "RiskLevel",
+    "riskLevel" TEXT,
     "screeningNotes" TEXT,
     "walletEnabled" BOOLEAN NOT NULL DEFAULT false,
     "walletLimit" DOUBLE PRECISION NOT NULL DEFAULT 200,
@@ -542,6 +425,7 @@ CREATE TABLE "SecuritySettings" (
     "biometricTransactions" BOOLEAN NOT NULL DEFAULT false,
     "boundDeviceOnly" BOOLEAN NOT NULL DEFAULT false,
     "sessionTimeout" INTEGER NOT NULL DEFAULT 30,
+    "notificationPrefs" TEXT NOT NULL DEFAULT '{}',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -579,7 +463,7 @@ CREATE TABLE "SecurityLog" (
     "deviceFingerprint" TEXT,
     "ipAddress" TEXT,
     "userAgent" TEXT,
-    "status" "SecurityLogStatus" NOT NULL DEFAULT 'success',
+    "status" TEXT NOT NULL DEFAULT 'success',
     "details" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -599,10 +483,10 @@ CREATE TABLE "Volunteer" (
     "state" TEXT,
     "occupation" TEXT,
     "skills" TEXT,
-    "availability" "VolunteerAvailability",
+    "availability" TEXT,
     "emergencyContact" TEXT,
     "emergencyPhone" TEXT,
-    "status" "VolunteerStatus" NOT NULL DEFAULT 'active',
+    "status" TEXT NOT NULL DEFAULT 'active',
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "totalHours" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -619,7 +503,7 @@ CREATE TABLE "VolunteerDeployment" (
     "programmeId" TEXT,
     "activityId" TEXT,
     "role" TEXT NOT NULL DEFAULT 'participant',
-    "status" "DeploymentStatus" NOT NULL DEFAULT 'assigned',
+    "status" TEXT NOT NULL DEFAULT 'assigned',
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3),
     "location" TEXT,
@@ -640,7 +524,7 @@ CREATE TABLE "VolunteerHourLog" (
     "activity" TEXT,
     "approvedBy" TEXT,
     "approvedAt" TIMESTAMP(3),
-    "status" "HourLogStatus" NOT NULL DEFAULT 'pending',
+    "status" TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -674,15 +558,15 @@ CREATE TABLE "Donor" (
     "address" TEXT,
     "city" TEXT,
     "state" TEXT,
-    "segment" "DonorSegment" NOT NULL DEFAULT 'occasional',
+    "segment" TEXT NOT NULL DEFAULT 'occasional',
     "preferredContact" TEXT,
     "isAnonymous" BOOLEAN NOT NULL DEFAULT false,
     "notes" TEXT,
-    "totalDonated" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalDonated" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "donationCount" INTEGER NOT NULL DEFAULT 0,
     "firstDonationAt" TIMESTAMP(3),
     "lastDonationAt" TIMESTAMP(3),
-    "status" "DonorStatus" NOT NULL DEFAULT 'active',
+    "status" TEXT NOT NULL DEFAULT 'active',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -694,10 +578,10 @@ CREATE TABLE "Donor" (
 CREATE TABLE "DonorCommunication" (
     "id" TEXT NOT NULL,
     "donorId" TEXT NOT NULL,
-    "type" "CommunicationType" NOT NULL,
+    "type" TEXT NOT NULL,
     "subject" TEXT NOT NULL,
     "content" TEXT,
-    "status" "CommunicationStatus" NOT NULL DEFAULT 'sent',
+    "status" TEXT NOT NULL DEFAULT 'sent',
     "sentAt" TIMESTAMP(3),
     "sentById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -712,7 +596,7 @@ CREATE TABLE "TaxReceipt" (
     "receiptNumber" TEXT NOT NULL,
     "donorId" TEXT NOT NULL,
     "donationId" TEXT,
-    "amount" DECIMAL(12,2) NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
     "donationDate" TIMESTAMP(3) NOT NULL,
     "purpose" TEXT NOT NULL DEFAULT 'Sumbangan amal kepada PUSPA',
     "lhdnRef" TEXT,
@@ -729,14 +613,14 @@ CREATE TABLE "Document" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
-    "category" "DocumentCategory" NOT NULL,
+    "category" TEXT NOT NULL,
     "subcategory" TEXT,
     "fileName" TEXT NOT NULL,
     "fileSize" INTEGER NOT NULL DEFAULT 0,
     "mimeType" TEXT,
     "fileUrl" TEXT,
     "version" INTEGER NOT NULL DEFAULT 1,
-    "status" "DocumentStatus" NOT NULL DEFAULT 'active',
+    "status" TEXT NOT NULL DEFAULT 'active',
     "uploadedBy" TEXT,
     "expiryDate" TIMESTAMP(3),
     "tags" TEXT,
@@ -866,7 +750,7 @@ CREATE TABLE "HermesConversation" (
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL DEFAULT 'Sesi Baru',
     "viewContext" TEXT NOT NULL DEFAULT 'dashboard',
-    "provider" "HermesProvider" NOT NULL DEFAULT 'zai',
+    "provider" TEXT NOT NULL DEFAULT 'zai',
     "model" TEXT NOT NULL DEFAULT 'default',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -878,7 +762,7 @@ CREATE TABLE "HermesConversation" (
 CREATE TABLE "HermesMessage" (
     "id" TEXT NOT NULL,
     "conversationId" TEXT NOT NULL,
-    "role" "HermesMessageRole" NOT NULL,
+    "role" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "toolCalls" TEXT,
     "toolResults" TEXT,
@@ -902,7 +786,7 @@ CREATE TABLE "HermesSkill" (
     "version" INTEGER NOT NULL DEFAULT 1,
     "usageCount" INTEGER NOT NULL DEFAULT 0,
     "successRate" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "source" "HermesSkillSource" NOT NULL DEFAULT 'auto',
+    "source" TEXT NOT NULL DEFAULT 'auto',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "userId" TEXT,
     "conversationId" TEXT,
@@ -916,10 +800,10 @@ CREATE TABLE "HermesSkill" (
 CREATE TABLE "HermesMemory" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "category" "HermesMemoryCategory" NOT NULL DEFAULT 'general',
+    "category" TEXT NOT NULL DEFAULT 'general',
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
-    "source" "HermesMemorySource" NOT NULL DEFAULT 'conversation',
+    "source" TEXT NOT NULL DEFAULT 'conversation',
     "confidence" DOUBLE PRECISION NOT NULL DEFAULT 1.0,
     "accessCount" INTEGER NOT NULL DEFAULT 0,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -934,7 +818,7 @@ CREATE TABLE "HermesMemory" (
 CREATE TABLE "HermesProviderConfig" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "provider" "HermesProvider" NOT NULL DEFAULT 'zai',
+    "provider" TEXT NOT NULL DEFAULT 'zai',
     "model" TEXT NOT NULL DEFAULT 'default',
     "apiKey" TEXT,
     "baseUrl" TEXT,

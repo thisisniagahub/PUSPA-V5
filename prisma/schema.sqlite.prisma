@@ -1,6 +1,5 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -8,29 +7,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================================
+// SQLite backup schema for local development
+// Based on schema.prisma (PostgreSQL) — Decimal→Float for SQLite
+// ============================================================
+
 model User {
-  id               String            @id @default(cuid())
-  email            String            @unique
-  password         String
-  name             String
-  role             String            @default("ops")
-  avatar           String?
-  phone            String?
-  isActive         Boolean           @default(true)
-  lastLogin        DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  auditLogs        AuditLog[]
-  assignedCases    Case[]            @relation("CaseAssignee")
-  createdCases     Case[]            @relation("CaseCreator")
-  deviceBindings   DeviceBinding[]
-  notifications    Notification[]
-  securityLogs     SecurityLog[]
-  securitySettings SecuritySettings?
+  id                     String               @id @default(uuid())
+  supabaseId             String?              @unique
+  email                  String               @unique
+  password               String
+  name                   String
+  role                   String               @default("staff")
+  avatar                 String?
+  phone                  String?
+  isActive               Boolean              @default(true)
+  lastLogin              DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  deletedAt              DateTime?
+  auditLogs              AuditLog[]
+  assignedCases          Case[]               @relation("CaseAssignee")
+  createdCases           Case[]               @relation("CaseCreator")
+  deviceBindings         DeviceBinding[]
+  notifications          Notification[]
+  securityLogs           SecurityLog[]
+  securitySettings       SecuritySettings?
+  caseNotes              CaseNote[]
+  caseDocuments          CaseDocument[]
+  disbursementsApproved  Disbursement[]
+  eKYCVerifications      EKYCVerification[]
+  donorCommunications    DonorCommunication[]
+  captures               Capture[]
+  hermesConversations    HermesConversation[]
+  hermesSkills           HermesSkill[]
+  hermesProviderConfig   HermesProviderConfig?
 }
 
 model Member {
-  id               String            @id @default(cuid())
+  id               String            @id @default(uuid())
   memberNumber     String            @unique
   name             String
   ic               String            @unique
@@ -51,6 +66,7 @@ model Member {
   joinedAt         DateTime          @default(now())
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
   cases            Case[]
   disbursements    Disbursement[]
   eKYCVerification EKYCVerification?
@@ -62,7 +78,7 @@ model Member {
 }
 
 model HouseholdMember {
-  id           String   @id @default(cuid())
+  id           String   @id @default(uuid())
   name         String
   relationship String
   age          Int?
@@ -77,7 +93,7 @@ model HouseholdMember {
 }
 
 model Programme {
-  id                   String                @id @default(cuid())
+  id                   String                @id @default(uuid())
   name                 String
   description          String?
   category             String
@@ -93,6 +109,7 @@ model Programme {
   notes                String?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
+  deletedAt            DateTime?
   activities           Activity[]
   cases                Case[]
   disbursements        Disbursement[]
@@ -102,7 +119,7 @@ model Programme {
 }
 
 model Case {
-  id                String         @id @default(cuid())
+  id                String         @id @default(uuid())
   caseNumber        String         @unique
   title             String
   description       String?
@@ -124,21 +141,27 @@ model Case {
   closedAt          DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
   assignee          User?          @relation("CaseAssignee", fields: [assigneeId], references: [id])
-  creator           User           @relation("CaseCreator", fields: [creatorId], references: [id])
-  programme         Programme?     @relation(fields: [programmeId], references: [id])
+  creator           User           @relation("CaseCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  programme         Programme?     @relation(fields: [programmeId], references: [id], onDelete: SetNull)
   member            Member?        @relation(fields: [memberId], references: [id])
   caseDocuments     CaseDocument[]
   caseNotes         CaseNote[]
   disbursements     Disbursement[]
+  donations         Donation[]
 
   @@index([caseNumber])
   @@index([status])
   @@index([memberId])
+  @@index([programmeId])
+  @@index([creatorId])
+  @@index([assigneeId])
+  @@index([createdAt])
 }
 
 model CaseNote {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   content   String
   type      String   @default("note")
   caseId    String
@@ -146,56 +169,71 @@ model CaseNote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
 }
 
 model CaseDocument {
-  id         String   @id @default(cuid())
-  name       String
-  type       String   @default("document")
-  url        String
-  caseId     String
-  uploadedBy String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  name         String
+  type         String   @default("document")
+  url          String
+  caseId       String
+  uploadedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  case         Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
 }
 
 model Donation {
-  id               String     @id @default(cuid())
-  donationNumber   String     @unique
+  id               String          @id @default(uuid())
+  donationNumber   String          @unique
   donorName        String
   donorIC          String?
   donorEmail       String?
   donorPhone       String?
   amount           Float
-  status           String     @default("pending")
-  method           String     @default("cash")
+  status           String          @default("pending")
+  method           String          @default("cash")
   channel          String?
-  fundType         String     @default("donation_general")
+  fundType         String          @default("donation_general")
   zakatCategory    String?
   zakatAuthority   String?
-  shariahCompliant Boolean    @default(true)
-  isAnonymous      Boolean    @default(false)
-  isTaxDeductible  Boolean    @default(false)
+  shariahCompliant Boolean         @default(true)
+  isAnonymous      Boolean         @default(false)
+  isTaxDeductible  Boolean         @default(false)
   receiptNumber    String?
   programmeId      String?
   caseId           String?
+  donorId          String?
   notes            String?
-  donatedAt        DateTime   @default(now())
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  programme        Programme? @relation(fields: [programmeId], references: [id])
+  donatedAt        DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
+  programme        Programme?      @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  case             Case?           @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  donor            Donor?          @relation(fields: [donorId], references: [id], onDelete: SetNull)
+  taxReceipts      TaxReceipt[]
 
   @@index([fundType])
   @@index([status])
+  @@index([donatedAt])
+  @@index([method])
+  @@index([donorIC])
+  @@index([donorEmail])
+  @@index([donorPhone])
+  @@index([programmeId])
+  @@index([caseId])
+  @@index([donorId])
 }
 
 model Disbursement {
-  id                 String     @id @default(cuid())
-  disbursementNumber String     @unique
+  id                 String             @id @default(uuid())
+  disbursementNumber String             @unique
   amount             Float
   purpose            String
-  status             String     @default("pending")
+  status             String             @default("pending")
   recipientName      String
   recipientIC        String?
   recipientBank      String?
@@ -204,42 +242,51 @@ model Disbursement {
   processedDate      DateTime?
   receiptUrl         String?
   notes              String?
-  approvedBy         String?
+  approvedById       String?
   caseId             String?
   programmeId        String?
   memberId           String?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  member             Member?    @relation(fields: [memberId], references: [id])
-  programme          Programme? @relation(fields: [programmeId], references: [id])
-  case               Case?      @relation(fields: [caseId], references: [id])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+  member             Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  programme          Programme?         @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  case               Case?              @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  approvedBy         User?              @relation(fields: [approvedById], references: [id])
 
   @@index([status])
+  @@index([programmeId])
+  @@index([caseId])
+  @@index([memberId])
+  @@index([processedDate])
 }
 
 model Activity {
-  id          String     @id @default(cuid())
+  id          String        @id @default(uuid())
   title       String
   description String?
-  type        String     @default("task")
-  status      String     @default("planned")
+  type        String        @default("other")
+  status      String        @default("planned")
   date        DateTime?
   endDate     DateTime?
   location    String?
   programmeId String?
   assignees   String?
   notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  order       Int        @default(0)
-  programme   Programme? @relation(fields: [programmeId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  order       Int           @default(0)
+  programme   Programme?    @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  volunteerDeployments VolunteerDeployment[]
+
+  @@index([programmeId])
 }
 
 model OrganizationProfile {
-  id                 String    @id @default(cuid())
+  id                 String           @id @default(uuid())
   legalName          String
   tradeName          String?
-  registrationType   String    @default("pertubuhan")
+  registrationType   String           @default("pertubuhan")
   registrationNumber String?
   foundedDate        DateTime?
   registeredAddress  String?
@@ -249,21 +296,21 @@ model OrganizationProfile {
   website            String?
   bankName           String?
   bankAccount        String?
-  bankVerified       Boolean   @default(false)
+  bankVerified       Boolean          @default(false)
   lhdnApprovalRef    String?
   lhdnApprovalExpiry DateTime?
-  isTaxExempt        Boolean   @default(false)
+  isTaxExempt        Boolean          @default(false)
   rosCertificateUrl  String?
   constitutionUrl    String?
   logoUrl            String?
   missionStatement   String?
   visionStatement    String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
 
 model BoardMember {
-  id              String    @id @default(cuid())
+  id              String          @id @default(uuid())
   name            String
   title           String?
   role            String
@@ -273,29 +320,30 @@ model BoardMember {
   email           String?
   photo           String?
   bio             String?
-  isCurrent       Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  isCurrent       Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 model Partner {
-  id              String   @id @default(cuid())
+  id              String            @id @default(uuid())
   name            String
-  type            String   @default("ngo")
+  type            String            @default("ngo")
   relationship    String?
   contactPerson   String?
   contactPhone    String?
   contactEmail    String?
   address         String?
-  verifiedStatus  String   @default("claimed")
+  verifiedStatus  String            @default("claimed")
   verificationUrl String?
   notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
 }
 
 model ImpactMetric {
-  id                 String    @id @default(cuid())
+  id                 String    @id @default(uuid())
   programmeId        String
   metricName         String
   description        String?
@@ -312,7 +360,7 @@ model ImpactMetric {
 }
 
 model PublicReport {
-  id          String    @id @default(cuid())
+  id          String    @id @default(uuid())
   title       String
   type        String
   year        String
@@ -325,7 +373,7 @@ model PublicReport {
 }
 
 model ComplianceChecklist {
-  id          String    @id @default(cuid())
+  id          String    @id @default(uuid())
   category    String
   item        String
   description String?
@@ -339,7 +387,7 @@ model ComplianceChecklist {
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   action    String
   entity    String
   entityId  String?
@@ -347,35 +395,42 @@ model AuditLog {
   userId    String?
   ipAddress String?
   createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String    @id @default(uuid())
   title     String
   message   String
-  type      String   @default("info")
-  isRead    Boolean  @default(false)
+  type      String    @default("info")
+  isRead    Boolean   @default(false)
   userId    String?
   link      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Capture {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   type      String
   content   String
   metadata  String?
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
 }
 
 model EKYCVerification {
-  id                  String    @id @default(cuid())
-  memberId            String    @unique
+  id                  String     @id @default(uuid())
+  memberId            String     @unique
   icFrontUrl          String?
   icBackUrl           String?
   icName              String?
@@ -387,37 +442,39 @@ model EKYCVerification {
   livenessScore       Float?
   livenessMethod      String?
   faceMatchScore      Float?
-  status              String    @default("pending")
-  verifiedBy          String?
+  status              String     @default("pending")
+  verifiedById        String?
   verifiedAt          DateTime?
   rejectionReason     String?
-  bnmCompliant        Boolean   @default(false)
+  bnmCompliant        Boolean    @default(false)
   amlaScreening       String?
   riskLevel           String?
   screeningNotes      String?
-  walletEnabled       Boolean   @default(false)
-  walletLimit         Float     @default(200)
-  previousLimit       Float     @default(200)
+  walletEnabled       Boolean    @default(false)
+  walletLimit         Float      @default(200)
+  previousLimit       Float      @default(200)
   limitUpgradedAt     DateTime?
-  bankTransferEnabled Boolean   @default(false)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  member              Member    @relation(fields: [memberId], references: [id])
+  bankTransferEnabled Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  member              Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  verifiedBy          User?      @relation(fields: [verifiedById], references: [id])
 }
 
 model SecuritySettings {
-  id                    String   @id @default(cuid())
+  id                    String   @id @default(uuid())
   userId                String   @unique
   biometricTransactions Boolean  @default(false)
   boundDeviceOnly       Boolean  @default(false)
   sessionTimeout        Int      @default(30)
+  notificationPrefs     String   @default("{}")
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
-  user                  User     @relation(fields: [userId], references: [id])
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model DeviceBinding {
-  id                String    @id @default(cuid())
+  id                String    @id @default(uuid())
   userId            String
   deviceName        String?
   deviceType        String?
@@ -433,25 +490,28 @@ model DeviceBinding {
   boundAt           DateTime  @default(now())
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  user              User      @relation(fields: [userId], references: [id])
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SecurityLog {
-  id                String   @id @default(cuid())
+  id                String    @id @default(uuid())
   userId            String?
   action            String
   method            String?
   deviceFingerprint String?
   ipAddress         String?
   userAgent         String?
-  status            String   @default("success")
+  status            String    @default("success")
   details           String?
-  createdAt         DateTime @default(now())
-  user              User?    @relation(fields: [userId], references: [id])
+  createdAt         DateTime  @default(now())
+  user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model Volunteer {
-  id               String                 @id @default(cuid())
+  id               String                 @id @default(uuid())
   volunteerNumber  String                 @unique
   name             String
   ic               String                 @unique
@@ -470,6 +530,7 @@ model Volunteer {
   totalHours       Float                  @default(0)
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
   certificates     VolunteerCertificate[]
   deployments      VolunteerDeployment[]
   hourLogs         VolunteerHourLog[]
@@ -479,27 +540,29 @@ model Volunteer {
 }
 
 model VolunteerDeployment {
-  id          String     @id @default(cuid())
+  id          String          @id @default(uuid())
   volunteerId String
   programmeId String?
   activityId  String?
-  role        String     @default("participant")
-  status      String     @default("assigned")
+  role        String          @default("participant")
+  status      String          @default("assigned")
   startDate   DateTime
   endDate     DateTime?
   location    String?
   notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  programme   Programme? @relation(fields: [programmeId], references: [id])
-  volunteer   Volunteer  @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  programme   Programme?      @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  volunteer   Volunteer       @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  activity    Activity?       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  hourLogs    VolunteerHourLog[]
 
   @@index([volunteerId])
   @@index([status])
 }
 
 model VolunteerHourLog {
-  id           String    @id @default(cuid())
+  id           String             @id @default(uuid())
   volunteerId  String
   deploymentId String?
   date         DateTime
@@ -507,17 +570,18 @@ model VolunteerHourLog {
   activity     String?
   approvedBy   String?
   approvedAt   DateTime?
-  status       String    @default("pending")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  volunteer    Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  status       String             @default("pending")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  volunteer    Volunteer          @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  deployment   VolunteerDeployment? @relation(fields: [deploymentId], references: [id])
 
   @@index([volunteerId])
   @@index([status])
 }
 
 model VolunteerCertificate {
-  id                String    @id @default(cuid())
+  id                String    @id @default(uuid())
   volunteerId       String
   certificateNumber String    @unique
   title             String
@@ -531,7 +595,7 @@ model VolunteerCertificate {
 }
 
 model Donor {
-  id               String               @id @default(cuid())
+  id               String               @id @default(uuid())
   donorNumber      String               @unique
   name             String
   ic               String?
@@ -551,50 +615,58 @@ model Donor {
   status           String               @default("active")
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
+  deletedAt        DateTime?
   communications   DonorCommunication[]
   taxReceipts      TaxReceipt[]
+  donations        Donation[]
 
   @@index([segment])
   @@index([status])
+  @@index([email])
+  @@index([ic])
+  @@index([phone])
 }
 
 model DonorCommunication {
-  id        String    @id @default(cuid())
+  id        String             @id @default(uuid())
   donorId   String
   type      String
   subject   String
   content   String?
-  status    String    @default("sent")
+  status    String             @default("sent")
   sentAt    DateTime?
-  sentBy    String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  donor     Donor     @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  sentById  String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  donor     Donor              @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  sentBy    User?              @relation(fields: [sentById], references: [id])
 
   @@index([donorId])
+  @@index([type])
 }
 
 model TaxReceipt {
-  id            String   @id @default(cuid())
-  receiptNumber String   @unique
+  id            String    @id @default(uuid())
+  receiptNumber String    @unique
   donorId       String
   donationId    String?
   amount        Float
   donationDate  DateTime
-  purpose       String   @default("Sumbangan amal kepada PUSPA")
+  purpose       String    @default("Sumbangan amal kepada PUSPA")
   lhdnRef       String?
-  issuedAt      DateTime @default(now())
+  issuedAt      DateTime  @default(now())
   issuedBy      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  donor         Donor    @relation(fields: [donorId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  donor         Donor     @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  donation      Donation? @relation(fields: [donationId], references: [id], onDelete: SetNull)
 
   @@index([donorId])
   @@index([receiptNumber])
 }
 
 model Document {
-  id          String    @id @default(cuid())
+  id          String    @id @default(uuid())
   title       String
   description String?
   category    String
@@ -616,7 +688,7 @@ model Document {
 }
 
 model Branch {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   name      String
   code      String   @unique
   address   String?
@@ -629,12 +701,13 @@ model Branch {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   @@index([code])
 }
 
 model WorkItem {
-  id                String           @id @default(cuid())
+  id                String           @id @default(uuid())
   workItemNumber    String           @unique
   title             String
   project           String           @default("PUSPA")
@@ -664,7 +737,7 @@ model WorkItem {
 }
 
 model ExecutionEvent {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   workItemId String
   type       String
   summary    String
@@ -682,7 +755,7 @@ model ExecutionEvent {
 }
 
 model Artifact {
-  id         String    @id @default(cuid())
+  id         String    @id @default(uuid())
   workItemId String?
   type       String
   title      String
@@ -697,7 +770,7 @@ model Artifact {
 }
 
 model AutomationJob {
-  id             String    @id @default(cuid())
+  id             String    @id @default(uuid())
   title          String
   description    String?
   kind           String    @default("one_time")
@@ -719,14 +792,13 @@ model AutomationJob {
   @@index([nextRunAt])
 }
 
-// Bot API Key for service accounts (e.g., PuspaCareBot)
 model BotApiKey {
-  id          String   @id @default(cuid())
-  name        String   // e.g., "PuspaCareBot"
-  key         String   @unique // hashed API key, never plain text
-  keyPrefix   String   // first 8 chars for display, e.g., "psbot_abc"
-  role        String   @default("bot") // bot, admin_bot, ops_bot
-  permissions String   @default("[]") // array of allowed permissions
+  id          String   @id @default(uuid())
+  name        String
+  key         String   @unique
+  keyPrefix   String
+  role        String   @default("bot")
+  permissions String   @default("[]")
   lastUsedAt  DateTime?
   expiresAt   DateTime?
   isActive    Boolean  @default(true)
@@ -737,12 +809,8 @@ model BotApiKey {
   @@index([isActive])
 }
 
-// ============================================================
-// Hermes Agent — Self-Improving AI Assistant
-// ============================================================
-
 model HermesConversation {
-  id          String            @id @default(cuid())
+  id          String            @id @default(uuid())
   userId      String
   title       String            @default("Sesi Baru")
   viewContext String            @default("dashboard")
@@ -752,18 +820,19 @@ model HermesConversation {
   updatedAt   DateTime          @updatedAt
   messages    HermesMessage[]
   skills      HermesSkill[]
+  user        User              @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([updatedAt])
 }
 
 model HermesMessage {
-  id             String            @id @default(cuid())
+  id             String            @id @default(uuid())
   conversationId String
-  role           String            // user | assistant | system
+  role           String
   content        String
-  toolCalls      String?           // JSON array of tool calls made
-  toolResults    String?           // JSON array of tool results
+  toolCalls      String?
+  toolResults    String?
   model          String?
   provider       String?
   tokensUsed     Int               @default(0)
@@ -776,22 +845,23 @@ model HermesMessage {
 }
 
 model HermesSkill {
-  id             String            @id @default(cuid())
-  name           String
-  description    String
-  category       String            @default("general")
-  instructions   String            // The SKILL.md content
-  triggerPatterns String?          // JSON array of patterns that trigger this skill
-  version        Int               @default(1)
-  usageCount     Int               @default(0)
-  successRate    Float             @default(0)
-  source         String            @default("auto") // auto | manual | imported
-  isActive       Boolean           @default(true)
-  userId         String?
-  conversationId String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  conversation   HermesConversation? @relation(fields: [conversationId], references: [id])
+  id              String             @id @default(uuid())
+  name            String
+  description     String
+  category        String             @default("general")
+  instructions    String
+  triggerPatterns String?
+  version         Int                @default(1)
+  usageCount      Int                @default(0)
+  successRate     Float              @default(0)
+  source          String             @default("auto")
+  isActive        Boolean            @default(true)
+  userId          String?
+  conversationId  String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  conversation    HermesConversation? @relation(fields: [conversationId], references: [id])
+  user            User?              @relation(fields: [userId], references: [id])
 
   @@index([name])
   @@index([category])
@@ -800,17 +870,17 @@ model HermesSkill {
 }
 
 model HermesMemory {
-  id          String    @id @default(cuid())
-  userId      String
-  category    String    @default("general") // preference | fact | procedure | context
-  key         String
-  value       String
-  source      String    @default("conversation") // conversation | manual | skill
-  confidence  Float     @default(1.0)
-  accessCount Int       @default(0)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  userId       String
+  category     String    @default("general")
+  key          String
+  value        String
+  source       String    @default("conversation")
+  confidence   Float     @default(1.0)
+  accessCount  Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   lastAccessed DateTime?
 
   @@unique([userId, key])
@@ -820,15 +890,16 @@ model HermesMemory {
 }
 
 model HermesProviderConfig {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  provider    String    @default("zai") // zai | openrouter | ollama
-  model       String    @default("default")
-  apiKey      String?   // Encrypted API key for OpenRouter etc.
-  baseUrl     String?   // Custom base URL for Ollama etc.
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  provider  String   @default("zai")
+  model     String   @default("default")
+  apiKey    String?
+  baseUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
