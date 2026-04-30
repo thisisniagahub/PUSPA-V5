@@ -65,7 +65,7 @@ export async function createSkill(params: {
       category: params.category || 'general',
       instructions: params.instructions,
       triggerPatterns: params.triggerPatterns ? JSON.stringify(params.triggerPatterns) : null,
-      source: (params.source || 'auto') as import('@prisma/client').HermesSkillSource,
+      source: (params.source || 'auto') as string,
       userId: params.userId,
       conversationId: params.conversationId,
     },

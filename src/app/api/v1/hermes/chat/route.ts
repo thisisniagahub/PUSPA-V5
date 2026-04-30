@@ -334,7 +334,7 @@ async function saveConversationTurn(userId: string, data: {
         userId,
         title,
         viewContext: data.currentView,
-        provider: data.provider as import('@prisma/client').HermesProvider,
+        provider: data.provider as string,
         model: data.model,
       },
     })

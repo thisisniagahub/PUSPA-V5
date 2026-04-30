@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthorizationError, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { z } from 'zod';
-import type { FundType } from '@prisma/client';
+// FundType is a String field in the Prisma schema, not a generated enum
 
 const querySchema = z.object({
   period: z.enum(['monthly', 'quarterly', 'yearly']).optional().default('yearly'),
@@ -53,12 +53,12 @@ export async function GET(request: NextRequest) {
     const donationWhere = {
       status: { in: ['confirmed' as const] },
       donatedAt: { gte: start, lte: end },
-      ...(fundType ? { fundType: fundType as FundType } : {}),
+      ...(fundType ? { fundType: fundType as string } : {}),
     };
 
     // Build disbursement where clause — 'completed' is not a valid DisbursementStatus, use 'disbursed'
     const disbursementWhere = {
-      status: { in: ['approved', 'processing', 'disbursed'] as import('@prisma/client').DisbursementStatus[] },
+      status: { in: ['approved', 'processing', 'disbursed'] as string[] },
       processedDate: { gte: start, lte: end },
     };
 
@@ -165,13 +165,13 @@ export async function GET(request: NextRequest) {
             where: {
               status: { in: ['confirmed' as const] },
               donatedAt: { gte: ms, lte: me },
-              ...(fundType ? { fundType: fundType as FundType } : {}),
+              ...(fundType ? { fundType: fundType as string } : {}),
             },
             _sum: { amount: true },
           }),
           db.disbursement.aggregate({
             where: {
-              status: { in: ['approved', 'processing', 'disbursed'] as import('@prisma/client').DisbursementStatus[] },
+              status: { in: ['approved', 'processing', 'disbursed'] as string[] },
               processedDate: { gte: ms, lte: me },
             },
             _sum: { amount: true },
@@ -194,13 +194,13 @@ export async function GET(request: NextRequest) {
             where: {
               status: { in: ['confirmed' as const] },
               donatedAt: { gte: qs, lte: qe },
-              ...(fundType ? { fundType: fundType as FundType } : {}),
+              ...(fundType ? { fundType: fundType as string } : {}),
             },
             _sum: { amount: true },
           }),
           db.disbursement.aggregate({
             where: {
-              status: { in: ['approved', 'processing', 'disbursed'] as import('@prisma/client').DisbursementStatus[] },
+              status: { in: ['approved', 'processing', 'disbursed'] as string[] },
               processedDate: { gte: qs, lte: qe },
             },
             _sum: { amount: true },

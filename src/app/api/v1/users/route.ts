@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, verifyPassword } from '@/lib/password'
-import { UserRole } from '@prisma/client'
+// UserRole is a String field in the Prisma schema, not a generated enum
 import { requireRole } from '@/lib/auth'
 
 // GET /api/v1/users — List all users
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         name,
         email,
         password: hashedPassword,
-        role: ((role || 'staff') as UserRole),
+        role: ((role || 'staff') as string),
         phone: phone || null,
       },
       select: {
