@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         requestText: `RPA task for IC ${icNumber}${memberName ? ` (${memberName})` : ''}: ${actionType}`,
         intent: actionType,
         status: 'queued',
-        priority,
+        priority: priority as string,
         currentStep: 'submitted',
         nextAction: 'pending_processing',
         tags: JSON.stringify({ icNumber, actionType, memberName: memberName || null }),
