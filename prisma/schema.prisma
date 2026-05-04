@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -85,6 +85,13 @@ model User {
   hermesConversations    HermesConversation[]
   hermesSkills           HermesSkill[]
   hermesProviderConfig   HermesProviderConfig?
+  hermesMCPServers       HermesMCPServer[]
+  hermesSubagents        HermesSubagent[]
+  hermesSoulConfig       HermesSoulConfig?
+  hermesCronJobs         HermesCronJob[]
+  hermesPlatforms        HermesPlatform[]
+  hermesMemoryProvider   HermesMemoryProvider?
+  hermesAuxiliaryConfig  HermesAuxiliaryConfig?
 }
 
 model Member {
@@ -893,28 +900,37 @@ model HermesMessage {
 }
 
 model HermesSkill {
-  id              String             @id @default(uuid())
-  name            String
-  description     String
-  category        String             @default("general")
-  instructions    String             // The SKILL.md content
-  triggerPatterns String?            // JSON array of patterns that trigger this skill
-  version         Int                @default(1)
-  usageCount      Int                @default(0)
-  successRate     Float              @default(0)
-  source          String             @default("auto") // Enum: HermesSkillSource (auto, manual, imported)
-  isActive        Boolean            @default(true)
-  userId          String?
-  conversationId  String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  conversation    HermesConversation? @relation(fields: [conversationId], references: [id])
-  user            User?              @relation(fields: [userId], references: [id])
+  id                  String             @id @default(uuid())
+  name                String
+  description         String
+  category            String             @default("general")
+  instructions        String             // The SKILL.md content (full skill body)
+  triggerPatterns     String?            // JSON array of patterns that trigger this skill
+  platforms           String?            // JSON array: ["macos","linux","windows"] — OS restrictions
+  metadata            String?            // JSON: hermes-specific metadata (tags, fallback_for_toolsets, requires_toolsets, config)
+  requiredEnvVars     String?            // JSON array of required env var declarations
+  references          String?            // JSON: additional reference files for Level 2 progressive disclosure
+  status              String             @default("active") // active, stale, archived
+  pinnedAt            DateTime?          // When skill was pinned (pinned = curator-proof)
+  lastUsedAt          DateTime?          // Last time skill was loaded/invoked
+  version             Int                @default(1)
+  usageCount          Int                @default(0)
+  successRate         Float              @default(0)
+  source              String             @default("auto") // auto, manual, imported, hub
+  isActive            Boolean            @default(true)
+  userId              String?
+  conversationId      String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  conversation        HermesConversation? @relation(fields: [conversationId], references: [id])
+  user                User?              @relation(fields: [userId], references: [id])
 
   @@index([name])
   @@index([category])
   @@index([isActive])
+  @@index([status])
   @@index([userId])
+  @@index([lastUsedAt])
 }
 
 model HermesMemory {
@@ -948,6 +964,189 @@ model HermesProviderConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================
+// Hermes Agent V2 — Upgraded with Hermes Agent (Nous Research) Features
+// ============================================================
+
+// ── Curator: Skill lifecycle management ────────────────────────────────────
+
+model HermesCuratorRun {
+  id              String   @id @default(uuid())
+  status          String   @default("running") // running, completed, failed
+  skillsReviewed  Int      @default(0)
+  skillsStaled    Int      @default(0)
+  skillsArchived  Int      @default(0)
+  skillsPatched   Int      @default(0)
+  skillsConsolidated Int   @default(0)
+  summary         String?  // LLM review summary
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  durationMs      Int?
+
+  @@index([status])
+  @@index([startedAt])
+}
+
+// ── MCP Server connections ─────────────────────────────────────────────────
+
+model HermesMCPServer {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  transport   String   @default("stdio") // stdio, http, sse
+  command     String?  // For stdio transport
+  url         String?  // For HTTP/SSE transport
+  args        String?  // JSON array of arguments
+  env         String?  // JSON object of environment variables
+  enabled     Boolean  @default(true)
+  toolFilter  String?  // JSON array of allowed tool names (null = all)
+  lastConnectedAt DateTime?
+  status      String   @default("disconnected") // connected, disconnected, error
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([enabled])
+}
+
+// ── Subagent delegation ────────────────────────────────────────────────────
+
+model HermesSubagent {
+  id              String   @id @default(uuid())
+  parentSessionId String   // Conversation ID that spawned this subagent
+  userId          String
+  task            String   // The task/prompt given to the subagent
+  status          String   @default("running") // running, completed, failed, cancelled
+  result          String?  // Final result from subagent
+  model           String?  // Model used
+  provider        String?  // Provider used
+  tokensUsed      Int      @default(0)
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  durationMs      Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([parentSessionId])
+  @@index([status])
+  @@index([userId])
+}
+
+// ── SOUL.md: Configurable personality ──────────────────────────────────────
+
+model HermesSoulConfig {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  content     String   @default("# PUSPA Hermes Personality\n\nAnda adalah Hermes, penasihat AI untuk PUSPA.")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ── Context compression snapshots ──────────────────────────────────────────
+
+model HermesContextSnapshot {
+  id              String   @id @default(uuid())
+  conversationId  String
+  turnNumber      Int
+  originalTokens  Int
+  compressedTokens Int
+  summary         String   // The compressed summary
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([turnNumber])
+}
+
+// ── Hermes Cron: Scheduled automations ─────────────────────────────────────
+
+model HermesCronJob {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  schedule    String    // Cron expression or natural language schedule
+  task        String    // Prompt to execute
+  platform    String?   // Delivery platform (web, telegram, discord, etc.)
+  sessionId   String?   // Optional: attach to specific conversation
+  isEnabled   Boolean   @default(true)
+  kind        String    @default("cron") // cron, fixed_rate, one_time
+  tz          String    @default("Asia/Kuala_Lumpur")
+  lastRunAt   DateTime?
+  nextRunAt   DateTime?
+  lastResult  String?
+  failureState String?
+  runCount    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isEnabled])
+  @@index([nextRunAt])
+}
+
+// ── Multi-Platform Gateway ─────────────────────────────────────────────────
+
+model HermesPlatform {
+  id          String   @id @default(uuid())
+  userId      String
+  platform    String   // telegram, discord, slack, whatsapp, signal, matrix, etc.
+  label       String?  // Display name
+  config      String   // JSON: platform-specific config (bot token, webhook URL, etc.)
+  isEnabled   Boolean  @default(true)
+  status      String   @default("disconnected") // connected, disconnected, error
+  lastEventAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@index([platform])
+  @@index([isEnabled])
+}
+
+// ── External Memory Provider config ────────────────────────────────────────
+
+model HermesMemoryProvider {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  provider    String   @default("builtin") // builtin, honcho, mem0, hindsight, holographic, retaindb, byterover, supermemory
+  config      String?  // JSON: provider-specific config
+  isActive    Boolean  @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([provider])
+}
+
+// ── Auxiliary model config (side-task routing) ─────────────────────────────
+
+model HermesAuxiliaryConfig {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  vision        String?  // JSON: {provider, model} for vision tasks
+  compression   String?  // JSON: {provider, model} for context compression
+  curator       String?  // JSON: {provider, model} for curator reviews
+  summarization String?  // JSON: {provider, model} for summarization
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

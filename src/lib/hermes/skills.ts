@@ -1,10 +1,15 @@
 // ============================================================
-// Hermes Agent — Self-Improving Skills System
-// Inspired by NousResearch Hermes Agent SKILL.md format
-// Skills are learned from interactions and improve over time
+// Hermes Agent V2 — Enhanced Skills System
+// Progressive disclosure (Level 0/1/2), SKILL.md format,
+// Agent-managed skills with skill_manage tool,
+// Conditional activation, platform restrictions,
+// External skill directories, enhanced autoCreateSkill
 // ============================================================
 
 import { db } from '@/lib/db'
+import { parseSkillMd, generateSkillMd, skillMdToDbFields, dbFieldsToSkillMd, type SkillMdData } from './skill-md'
+
+// ── Types ───────────────────────────────────────────────────
 
 export interface SkillEntry {
   id: string
@@ -13,6 +18,13 @@ export interface SkillEntry {
   category: string
   instructions: string
   triggerPatterns: string[]
+  platforms: string[]
+  metadata: SkillHermesMetadata | null
+  requiredEnvVars: string[]
+  references: string[]
+  status: string
+  pinnedAt: string | null
+  lastUsedAt: string | null
   version: number
   usageCount: number
   successRate: number
@@ -23,6 +35,45 @@ export interface SkillEntry {
   updatedAt: string
 }
 
+export interface SkillHermesMetadata {
+  tags?: string[]
+  category?: string
+  fallback_for_toolsets?: string[]
+  requires_toolsets?: string[]
+  config?: { key: string; description: string; default?: string }[]
+}
+
+/** Progressive disclosure levels for skill instructions */
+export type SkillDisclosureLevel = 0 | 1 | 2
+
+/** Filter options for listing skills */
+export interface SkillListFilters {
+  category?: string
+  userId?: string
+  activeOnly?: boolean
+  status?: string
+  platform?: string
+  toolset?: string
+}
+
+/** Options for auto-creating skills with SKILL.md format */
+export interface AutoCreateOptions {
+  name: string
+  description: string
+  instructions: string
+  triggerPatterns: string[]
+  category?: string
+  userId?: string
+  conversationId?: string
+  skillMd?: string  // Raw SKILL.md content
+  platforms?: string[]
+  metadata?: SkillHermesMetadata
+  requiredEnvVars?: string[]
+  references?: string[]
+}
+
+// ── Mapper ──────────────────────────────────────────────────
+
 function toSkillEntry(s: {
   id: string
   name: string
@@ -30,6 +81,13 @@ function toSkillEntry(s: {
   category: string
   instructions: string
   triggerPatterns: string | null
+  platforms: string | null
+  metadata: string | null
+  requiredEnvVars: string | null
+  references: string | null
+  status: string
+  pinnedAt: Date | null
+  lastUsedAt: Date | null
   version: number
   usageCount: number
   successRate: number
@@ -39,15 +97,39 @@ function toSkillEntry(s: {
   createdAt: Date
   updatedAt: Date
 }): SkillEntry {
+  let parsedMetadata: SkillHermesMetadata | null = null
+  if (s.metadata) {
+    try { parsedMetadata = JSON.parse(s.metadata) } catch { /* ignore */ }
+  }
+
   return {
-    ...s,
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    category: s.category,
+    instructions: s.instructions,
     triggerPatterns: s.triggerPatterns ? JSON.parse(s.triggerPatterns) : [],
+    platforms: s.platforms ? JSON.parse(s.platforms) : [],
+    metadata: parsedMetadata,
+    requiredEnvVars: s.requiredEnvVars ? JSON.parse(s.requiredEnvVars) : [],
+    references: s.references ? JSON.parse(s.references) : [],
+    status: s.status,
+    pinnedAt: s.pinnedAt?.toISOString() ?? null,
+    lastUsedAt: s.lastUsedAt?.toISOString() ?? null,
+    version: s.version,
+    usageCount: s.usageCount,
+    successRate: s.successRate,
+    source: s.source,
+    isActive: s.isActive,
+    userId: s.userId,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
   }
 }
 
-// Create a new skill
+// ── Create ──────────────────────────────────────────────────
+
+/** Create a new skill */
 export async function createSkill(params: {
   name: string
   description: string
@@ -57,6 +139,11 @@ export async function createSkill(params: {
   source?: string
   userId?: string
   conversationId?: string
+  platforms?: string[]
+  metadata?: SkillHermesMetadata
+  requiredEnvVars?: string[]
+  references?: string[]
+  skillMd?: string
 }): Promise<SkillEntry> {
   const skill = await db.hermesSkill.create({
     data: {
@@ -65,6 +152,10 @@ export async function createSkill(params: {
       category: params.category || 'general',
       instructions: params.instructions,
       triggerPatterns: params.triggerPatterns ? JSON.stringify(params.triggerPatterns) : null,
+      platforms: params.platforms ? JSON.stringify(params.platforms) : null,
+      metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+      requiredEnvVars: params.requiredEnvVars ? JSON.stringify(params.requiredEnvVars) : null,
+      references: params.references ? JSON.stringify(params.references) : null,
       source: (params.source || 'auto') as string,
       userId: params.userId,
       conversationId: params.conversationId,
@@ -74,17 +165,33 @@ export async function createSkill(params: {
   return toSkillEntry(skill)
 }
 
-// List all active skills
-export async function listSkills(params?: {
-  category?: string
-  userId?: string
-  activeOnly?: boolean
-}): Promise<SkillEntry[]> {
+// ── List ────────────────────────────────────────────────────
+
+/** List all skills with enhanced filtering */
+export async function listSkills(params?: SkillListFilters): Promise<SkillEntry[]> {
   const where: Record<string, unknown> = {}
 
   if (params?.activeOnly !== false) where.isActive = true
   if (params?.category) where.category = params.category
   if (params?.userId) where.userId = params.userId
+  if (params?.status) where.status = params.status
+
+  // Platform filter: check if skill's platforms array contains the requested platform
+  if (params?.platform) {
+    // Skills with null platforms work on all platforms
+    where.OR = [
+      { platforms: null },
+      { platforms: { contains: params.platform } },
+    ]
+  }
+
+  // Toolset filter: check metadata.requires_toolsets or fallback_for_toolsets
+  if (params?.toolset) {
+    where.OR = [
+      { metadata: null },
+      { metadata: { contains: params.toolset } },
+    ]
+  }
 
   const skills = await db.hermesSkill.findMany({
     where,
@@ -98,14 +205,59 @@ export async function listSkills(params?: {
   return skills.map(s => toSkillEntry(s))
 }
 
-// Get a specific skill
+// ── Get ─────────────────────────────────────────────────────
+
+/** Get a specific skill */
 export async function getSkill(skillId: string): Promise<SkillEntry | null> {
   const skill = await db.hermesSkill.findUnique({ where: { id: skillId } })
   if (!skill) return null
   return toSkillEntry(skill)
 }
 
-// Record skill usage (increment count, update success rate)
+/** Get a skill with progressive disclosure level */
+export async function getSkillWithDisclosure(
+  skillId: string,
+  level: SkillDisclosureLevel = 1
+): Promise<{
+  skill: SkillEntry
+  disclosureLevel: SkillDisclosureLevel
+  content: string
+}> {
+  const skill = await getSkill(skillId)
+  if (!skill) throw new Error('Skill not found')
+
+  // Mark as used
+  await recordSkillUsage(skillId, true)
+
+  let content = ''
+
+  switch (level) {
+    case 0:
+      // Level 0: Name and description only
+      content = `**${skill.name}**: ${skill.description}`
+      break
+    case 1:
+      // Level 1: Full instructions
+      content = `# ${skill.name}\n${skill.instructions}`
+      break
+    case 2:
+      // Level 2: Instructions + references (deep detail)
+      content = `# ${skill.name}\n${skill.instructions}`
+      if (skill.references.length > 0) {
+        content += `\n\n## References\n${skill.references.join('\n')}`
+      }
+      if (skill.metadata?.config && skill.metadata.config.length > 0) {
+        content += `\n\n## Configuration\n${skill.metadata.config.map(c => `- **${c.key}**: ${c.description}${c.default ? ` (default: ${c.default})` : ''}`).join('\n')}`
+      }
+      break
+  }
+
+  return { skill, disclosureLevel: level, content }
+}
+
+// ── Record Usage ────────────────────────────────────────────
+
+/** Record skill usage (increment count, update success rate, update lastUsedAt) */
 export async function recordSkillUsage(skillId: string, success: boolean): Promise<void> {
   const skill = await db.hermesSkill.findUnique({ where: { id: skillId } })
   if (!skill) return
@@ -118,28 +270,63 @@ export async function recordSkillUsage(skillId: string, success: boolean): Promi
     data: {
       usageCount: newCount,
       successRate: Math.round(newRate * 100) / 100,
+      lastUsedAt: new Date(),
       updatedAt: new Date(),
     },
   })
 }
 
-// Find matching skills for a user query
-export async function findMatchingSkills(query: string, userId?: string): Promise<SkillEntry[]> {
+// ── Match ───────────────────────────────────────────────────
+
+/** Find matching skills for a user query with conditional activation */
+export async function findMatchingSkills(
+  query: string,
+  userId?: string,
+  availableToolsets?: string[]
+): Promise<SkillEntry[]> {
   const skills = await listSkills({ activeOnly: true, userId })
 
   const queryLower = query.toLowerCase()
+  const toolsets = availableToolsets || []
+
   return skills.filter(skill => {
     // Check trigger patterns
-    if (skill.triggerPatterns.length > 0) {
-      return skill.triggerPatterns.some(p => queryLower.includes(p.toLowerCase()))
+    const patternMatch = skill.triggerPatterns.length > 0
+      ? skill.triggerPatterns.some(p => queryLower.includes(p.toLowerCase()))
+      : false
+
+    // Check name/description match
+    const textMatch = queryLower.includes(skill.name.toLowerCase()) ||
+                     queryLower.includes(skill.description.toLowerCase())
+
+    if (!patternMatch && !textMatch) return false
+
+    // Conditional activation: check requires_toolsets
+    if (skill.metadata?.requires_toolsets && skill.metadata.requires_toolsets.length > 0) {
+      const hasRequired = skill.metadata.requires_toolsets.some(t => toolsets.includes(t))
+      if (!hasRequired) return false
     }
-    // Fallback: check name and description
-    return queryLower.includes(skill.name.toLowerCase()) ||
-           queryLower.includes(skill.description.toLowerCase())
+
+    return true
   })
 }
 
-// Build skills context block for system prompt
+/** Find fallback skills for toolsets that don't have direct matches */
+export async function findFallbackSkills(
+  toolsets: string[],
+  userId?: string
+): Promise<SkillEntry[]> {
+  const skills = await listSkills({ activeOnly: true, userId })
+
+  return skills.filter(skill => {
+    if (!skill.metadata?.fallback_for_toolsets) return false
+    return skill.metadata.fallback_for_toolsets.some(t => toolsets.includes(t))
+  })
+}
+
+// ── Build Context ───────────────────────────────────────────
+
+/** Build skills context block for system prompt */
 export async function buildSkillsContext(userId?: string): Promise<string> {
   const skills = await listSkills({ activeOnly: true, userId })
 
@@ -159,10 +346,10 @@ export async function buildSkillsContext(userId?: string): Promise<string> {
 The following skills have been learned from previous interactions. Use them when relevant:
 ${lines.join('\n')}
 
-After completing a complex task (5+ tool calls), fixing a tricky error, or discovering a non-trivial workflow, consider saving the approach as a skill using the \`manage_skill\` tool.`
+After completing a complex task (5+ tool calls), fixing a tricky error, or discovering a non-trivial workflow, consider saving the approach as a skill using the \`skill_manage\` tool.`
 }
 
-// Build enhanced skills context with instructions for matched skills
+/** Build enhanced skills context with progressive disclosure */
 export async function buildEnhancedSkillsContext(userId?: string, query?: string): Promise<string> {
   const allSkills = await listSkills({ activeOnly: true, userId })
   if (allSkills.length === 0) return ''
@@ -181,7 +368,7 @@ export async function buildEnhancedSkillsContext(userId?: string, query?: string
   let context = `## Available Skills (Self-Learned)
 ${lines.join('\n')}`
 
-  // Add detailed instructions for matched skills
+  // Add detailed instructions for matched skills (Level 1 disclosure)
   if (matchedSkills.length > 0) {
     context += `\n\n## Active Skill Instructions
 The following skills are relevant to this query. Follow their instructions:`
@@ -190,33 +377,70 @@ The following skills are relevant to this query. Follow their instructions:`
     }
   }
 
-  context += `\n\nAfter completing a complex task, consider saving the approach as a skill using the \`manage_skill\` tool.`
+  context += `\n\nAfter completing a complex task, consider saving the approach as a skill using the \`skill_manage\` tool.`
 
   return context
 }
 
-// Auto-create a skill from a successful interaction
-export async function autoCreateSkill(params: {
-  name: string
-  description: string
-  instructions: string
-  triggerPatterns: string[]
-  category?: string
-  userId?: string
-  conversationId?: string
-}): Promise<SkillEntry | null> {
+// ── Auto-create with SKILL.md ───────────────────────────────
+
+/** Auto-create a skill from a successful interaction, with SKILL.md format support */
+export async function autoCreateSkill(params: AutoCreateOptions): Promise<SkillEntry | null> {
   // Check if a similar skill already exists
   const existing = await db.hermesSkill.findFirst({
     where: { name: params.name, isActive: true },
   })
 
+  // If raw SKILL.md is provided, parse it
+  if (params.skillMd) {
+    try {
+      const parsed = parseSkillMd(params.skillMd)
+      const fields = skillMdToDbFields(parsed)
+
+      if (existing) {
+        // Update existing skill with SKILL.md data
+        await db.hermesSkill.update({
+          where: { id: existing.id },
+          data: {
+            instructions: fields.instructions,
+            triggerPatterns: fields.triggerPatterns ? JSON.stringify(fields.triggerPatterns) : null,
+            platforms: fields.platforms ? JSON.stringify(fields.platforms) : null,
+            metadata: fields.metadata,
+            version: { increment: 1 },
+            updatedAt: new Date(),
+          },
+        })
+        return getSkill(existing.id)
+      }
+
+      return createSkill({
+        name: fields.name,
+        description: fields.description,
+        category: params.category || parsed.frontmatter.metadata?.hermes?.category || 'general',
+        instructions: fields.instructions,
+        triggerPatterns: fields.triggerPatterns || [],
+        source: 'auto',
+        userId: params.userId,
+        conversationId: params.conversationId,
+        platforms: fields.platforms || undefined,
+        metadata: fields.metadata ? JSON.parse(fields.metadata) : undefined,
+      })
+    } catch {
+      // Fall through to standard creation
+    }
+  }
+
+  // Standard creation without SKILL.md
   if (existing) {
-    // Update existing skill instead of creating duplicate
     await db.hermesSkill.update({
       where: { id: existing.id },
       data: {
         instructions: params.instructions,
         triggerPatterns: JSON.stringify(params.triggerPatterns),
+        platforms: params.platforms ? JSON.stringify(params.platforms) : null,
+        metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+        requiredEnvVars: params.requiredEnvVars ? JSON.stringify(params.requiredEnvVars) : null,
+        references: params.references ? JSON.stringify(params.references) : null,
         version: { increment: 1 },
         updatedAt: new Date(),
       },
@@ -224,10 +448,152 @@ export async function autoCreateSkill(params: {
     return getSkill(existing.id)
   }
 
-  return createSkill(params)
+  return createSkill({
+    name: params.name,
+    description: params.description,
+    category: params.category,
+    instructions: params.instructions,
+    triggerPatterns: params.triggerPatterns,
+    source: 'auto',
+    userId: params.userId,
+    conversationId: params.conversationId,
+    platforms: params.platforms,
+    metadata: params.metadata,
+    requiredEnvVars: params.requiredEnvVars,
+    references: params.references,
+  })
 }
 
-// Seed default skills (12 skills covering all major workflows)
+// ── Skill Manage ────────────────────────────────────────────
+
+/** Manage skills — agent-facing CRUD with curator support */
+export async function skillManage(action: 'create' | 'update' | 'delete' | 'pin' | 'unpin' | 'restore', params: {
+  skillId?: string
+  name?: string
+  description?: string
+  instructions?: string
+  triggerPatterns?: string[]
+  category?: string
+  skillMd?: string
+  userId?: string
+  conversationId?: string
+}): Promise<SkillEntry | null> {
+  switch (action) {
+    case 'create': {
+      if (params.skillMd) {
+        return autoCreateSkill({
+          name: params.name || 'untitled-skill',
+          description: params.description || '',
+          instructions: params.instructions || '',
+          triggerPatterns: params.triggerPatterns || [],
+          category: params.category,
+          userId: params.userId,
+          conversationId: params.conversationId,
+          skillMd: params.skillMd,
+        })
+      }
+      return createSkill({
+        name: params.name || 'untitled-skill',
+        description: params.description || '',
+        category: params.category,
+        instructions: params.instructions || '',
+        triggerPatterns: params.triggerPatterns || [],
+        source: 'manual',
+        userId: params.userId,
+        conversationId: params.conversationId,
+      })
+    }
+
+    case 'update': {
+      if (!params.skillId) throw new Error('skillId required for update')
+
+      const data: Record<string, unknown> = { updatedAt: new Date() }
+      if (params.name) data.name = params.name
+      if (params.description) data.description = params.description
+      if (params.instructions) data.instructions = params.instructions
+      if (params.triggerPatterns) data.triggerPatterns = JSON.stringify(params.triggerPatterns)
+      if (params.category) data.category = params.category
+
+      // If SKILL.md provided, update from it
+      if (params.skillMd) {
+        try {
+          const parsed = parseSkillMd(params.skillMd)
+          const fields = skillMdToDbFields(parsed)
+          data.instructions = fields.instructions
+          data.triggerPatterns = fields.triggerPatterns ? JSON.stringify(fields.triggerPatterns) : null
+          data.platforms = fields.platforms ? JSON.stringify(fields.platforms) : null
+          data.metadata = fields.metadata
+          data.version = { increment: 1 }
+        } catch { /* ignore parse failures */ }
+      }
+
+      await db.hermesSkill.update({ where: { id: params.skillId }, data })
+      return getSkill(params.skillId)
+    }
+
+    case 'delete': {
+      if (!params.skillId) throw new Error('skillId required for delete')
+      await db.hermesSkill.update({
+        where: { id: params.skillId },
+        data: { isActive: false, updatedAt: new Date() },
+      })
+      return null
+    }
+
+    case 'pin': {
+      if (!params.skillId) throw new Error('skillId required for pin')
+      await db.hermesSkill.update({
+        where: { id: params.skillId },
+        data: { pinnedAt: new Date(), updatedAt: new Date() },
+      })
+      return getSkill(params.skillId)
+    }
+
+    case 'unpin': {
+      if (!params.skillId) throw new Error('skillId required for unpin')
+      await db.hermesSkill.update({
+        where: { id: params.skillId },
+        data: { pinnedAt: null, updatedAt: new Date() },
+      })
+      return getSkill(params.skillId)
+    }
+
+    case 'restore': {
+      if (!params.skillId) throw new Error('skillId required for restore')
+      await db.hermesSkill.update({
+        where: { id: params.skillId },
+        data: { status: 'active', isActive: true, lastUsedAt: new Date(), updatedAt: new Date() },
+      })
+      return getSkill(params.skillId)
+    }
+
+    default:
+      throw new Error(`Unknown skill_manage action: ${action}`)
+  }
+}
+
+// ── Export SKILL.md ─────────────────────────────────────────
+
+/** Export a skill as SKILL.md format */
+export async function exportSkillMd(skillId: string): Promise<string | null> {
+  const skill = await db.hermesSkill.findUnique({ where: { id: skillId } })
+  if (!skill) return null
+
+  const data = dbFieldsToSkillMd({
+    name: skill.name,
+    description: skill.description,
+    platforms: skill.platforms,
+    metadata: skill.metadata,
+    instructions: skill.instructions,
+    triggerPatterns: skill.triggerPatterns,
+  })
+
+  return generateSkillMd(data)
+}
+
+// ── Seed Default Skills ─────────────────────────────────────
+
+/** Seed default skills (12 skills covering all major workflows) */
 export async function seedDefaultSkills(): Promise<void> {
   const defaults = [
     {
