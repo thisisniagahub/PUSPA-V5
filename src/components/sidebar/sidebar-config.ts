@@ -30,6 +30,7 @@ import {
   GraduationCap,
   Settings,
   MessageSquare,
+  BrainCircuit,
 } from 'lucide-react'
 import type { UserRole } from '@/stores/app-store'
 import type { SidebarNavGroup } from './sidebar-types'
@@ -106,6 +107,7 @@ export const SIDEBAR_GROUPS: SidebarNavGroup[] = [
     roles: ['developer'],
     items: [
       { id: 'ops-conductor', label: 'Ops Conductor', icon: Zap, roles: ['developer'] },
+      { id: 'hermes-manager', label: 'Hermes Agent', icon: BrainCircuit, roles: ['developer'] },
       { id: 'ai', label: 'Alat AI', icon: Sparkles, roles: ['developer'] },
       { id: 'openclaw-mcp', label: 'Pelayan MCP', icon: Server, roles: ['developer'] },
       { id: 'openclaw-plugins', label: 'Sambungan', icon: Puzzle, roles: ['developer'] },

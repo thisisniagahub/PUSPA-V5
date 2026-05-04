@@ -37,6 +37,7 @@ const moduleLoaders: Record<ViewId, React.ComponentType> = {
   'asnafpreneur': dynamic(() => import('@/modules/asnafpreneur/page'), { ssr: false }),
   'kelas-ai': dynamic(() => import('@/modules/kelas-ai/page'), { ssr: false }),
   'gudang-barangan': dynamic(() => import('@/modules/gudang-barangan/page'), { ssr: false }),
+  'hermes-manager': dynamic(() => import('@/modules/hermes-manager/page'), { ssr: false }),
   'settings': dynamic(() => import('@/modules/settings/page'), { ssr: false }),
 };
 

@@ -33,6 +33,7 @@ export type ViewId =
   | 'asnafpreneur'
   | 'kelas-ai'
   | 'gudang-barangan'
+  | 'hermes-manager'
   | 'settings'
 
 export const viewLabels: Record<ViewId, string> = {
@@ -68,6 +69,7 @@ export const viewLabels: Record<ViewId, string> = {
   'asnafpreneur': 'Asnafpreneur',
   'kelas-ai': 'Kelas AI',
   'gudang-barangan': 'Gudang Barangan',
+  'hermes-manager': 'Hermes Agent',
   'settings': 'Tetapan',
 }
 
