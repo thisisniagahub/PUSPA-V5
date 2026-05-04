@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Check, ChevronDown, Eye, EyeOff, Loader2, Save, Zap, Globe, Server } from 'lucide-react'
+import { Check, ChevronDown, Eye, EyeOff, Loader2, Save, Zap, Globe, Server, BrainCircuit, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useHermesStore } from '@/stores/hermes-store'
+import { useAppStore } from '@/stores/app-store'
 import { PROVIDERS, type ProviderId } from '@/lib/hermes/provider-types'
 import { cn } from '@/lib/utils'
 
 export function HermesSettings() {
-  const { providerState, setProviderState, loadProviderConfig } = useHermesStore()
+  const { providerState, setProviderState, loadProviderConfig, setOpen } = useHermesStore()
+  const { setView } = useAppStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -95,6 +97,21 @@ export function HermesSettings() {
   return (
     <div className="p-4 space-y-4 bg-zinc-50 dark:bg-zinc-900/50">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">⚙ Tetapan Provider</div>
+
+      {/* Quick link to Hermes Manager */}
+      <button
+        onClick={() => { setOpen(false); setView('hermes-manager') }}
+        className="w-full flex items-center gap-3 p-3 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors text-left group"
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 shrink-0">
+          <BrainCircuit className="h-4 w-4 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Hermes Agent Manager</p>
+          <p className="text-[10px] text-violet-500/70">Skills, Curator, Memory, SOUL.md, MCP...</p>
+        </div>
+        <ArrowRight className="h-4 w-4 text-violet-400 group-hover:translate-x-0.5 transition-transform" />
+      </button>
 
       {/* Provider Selection */}
       <div className="space-y-2">
